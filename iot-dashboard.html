@@ -1,0 +1,3269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>物联网后台管理系统</title>
+  <!-- Element Plus CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.8.4/dist/index.css">
+  <!-- ECharts -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <!-- Vue 3 -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.js"></script>
+  <!-- Element Plus JS -->
+  <script src="https://cdn.jsdelivr.net/npm/element-plus@2.8.4/dist/index.full.js"></script>
+  <!-- Vue Router -->
+  <script src="https://cdn.jsdelivr.net/npm/vue-router@4.4.5/dist/vue-router.global.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    const { createApp, ref, computed, onMounted, reactive, watch } = Vue
+    const { createRouter, createWebHashHistory } = VueRouter
+    const { ElMessage, ElMessageBox } = ElementPlus
+
+    // 登录页面组件
+    const Login = {
+      template: `
+        <div class="login-container">
+          <div class="login-box">
+            <div class="login-header">
+              <div class="login-logo">
+                <el-icon class="logo-icon"><Cloud /></el-icon>
+                <h2>物联网管理系统</h2>
+              </div>
+              <p>请登录以访问系统</p>
+            </div>
+            <el-form :model="loginForm" :rules="rules" ref="loginFormRef" class="login-form">
+              <el-form-item prop="username">
+                <el-input
+                  v-model="loginForm.username"
+                  placeholder="用户名"
+                  prefix-icon="User"
+                  class="login-input"
+                />
+              </el-form-item>
+              <el-form-item prop="password">
+                <el-input
+                  v-model="loginForm.password"
+                  type="password"
+                  placeholder="密码"
+                  prefix-icon="Lock"
+                  show-password
+                  class="login-input"
+                />
+              </el-form-item>
+              <el-form-item class="remember-item">
+                <el-checkbox v-model="rememberMe">记住我</el-checkbox>
+                <el-link type="primary" :underline="false" class="forgot-link">忘记密码?</el-link>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" class="login-btn" @click="login" :loading="loading">
+                  登录
+                </el-button>
+              </el-form-item>
+              <div class="login-tip">
+                <h4>测试账号</h4>
+                <p>用户名: <span class="tip-highlight">admin</span></p>
+                <p>密码: <span class="tip-highlight">admin123</span></p>
+              </div>
+            </el-form>
+          </div>
+        </div>
+      `,
+      setup() {
+        const router = VueRouter.useRouter()
+        const loginFormRef = ref(null)
+        const loading = ref(false)
+        const rememberMe = ref(false)
+
+        const loginForm = reactive({
+          username: '',
+          password: ''
+        })
+
+        // 检查本地存储中的记住我状态
+        const initLoginForm = () => {
+          const savedUsername = localStorage.getItem('savedUsername')
+          const savedRememberMe = localStorage.getItem('rememberMe')
+          if (savedRememberMe === 'true' && savedUsername) {
+            loginForm.username = savedUsername
+            rememberMe.value = true
+          }
+        }
+
+        // 初始化登录表单
+        initLoginForm()
+
+        const rules = {
+          username: [
+            { required: true, message: '请输入用户名', trigger: 'blur' }
+          ],
+          password: [
+            { required: true, message: '请输入密码', trigger: 'blur' }
+          ]
+        }
+
+        const login = async () => {
+          if (!loginFormRef.value) return
+          
+          await loginFormRef.value.validate(async (valid) => {
+            if (valid) {
+              loading.value = true
+              try {
+                // 模拟登录验证
+                if (loginForm.username === 'admin' && loginForm.password === 'admin123') {
+                  localStorage.setItem('isLoggedIn', 'true')
+                  localStorage.setItem('username', loginForm.username)
+                  
+                  // 保存记住我状态
+                  if (rememberMe.value) {
+                    localStorage.setItem('savedUsername', loginForm.username)
+                    localStorage.setItem('rememberMe', 'true')
+                  } else {
+                    localStorage.removeItem('savedUsername')
+                    localStorage.removeItem('rememberMe')
+                  }
+                  
+                  ElMessage.success('登录成功')
+                  router.push('/dashboard')
+                } else {
+                  ElMessage.error('用户名或密码错误')
+                }
+              } catch (error) {
+                ElMessage.error('登录失败，请重试')
+              } finally {
+                loading.value = false
+              }
+            }
+          })
+        }
+
+        return {
+          loginFormRef,
+          loading,
+          rememberMe,
+          loginForm,
+          rules,
+          login
+        }
+      }
+    }
+
+    // 数据驾驶舱组件
+    const Dashboard = {
+      template: `
+        <div class="dashboard">
+          <!-- 页面标题 -->
+          <div class="page-header">
+            <h1>数据驾驶舱</h1>
+            <div class="header-actions">
+              <el-date-picker
+                v-model="dateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="YYYY-MM-DD"
+                class="date-picker"
+              />
+              <el-select v-model="deviceFilter" placeholder="选择设备" class="filter-select">
+                <el-option label="全部设备" value="" />
+                <el-option label="温度传感器" value="temperature" />
+                <el-option label="湿度传感器" value="humidity" />
+                <el-option label="烟雾传感器" value="smoke" />
+              </el-select>
+              <el-select v-model="refreshInterval" placeholder="刷新间隔" class="filter-select">
+                <el-option label="手动" value="0" />
+                <el-option label="10秒" value="10000" />
+                <el-option label="30秒" value="30000" />
+                <el-option label="1分钟" value="60000" />
+              </el-select>
+              <el-button type="primary" @click="refreshData" class="refresh-btn">
+                <el-icon><Refresh /></el-icon> 刷新数据
+              </el-button>
+              <el-dropdown @command="handleExport">
+                <el-button type="success">
+                  <el-icon><Download /></el-icon> 导出数据
+                  <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="excel">导出为 Excel</el-dropdown-item>
+                    <el-dropdown-item command="csv">导出为 CSV</el-dropdown-item>
+                    <el-dropdown-item command="pdf">导出为 PDF</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+          </div>
+
+          <!-- 核心KPI卡片 -->
+          <div class="kpi-grid">
+            <el-card class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">实时温度</span>
+                <el-icon class="kpi-icon"><Sunny /></el-icon>
+              </div>
+              <div class="kpi-value">{{ realTimeData.temperature }}°C</div>
+              <div class="kpi-trend" :class="realTimeData.tempTrend">
+                <el-icon v-if="realTimeData.tempTrend === 'up'"><ArrowUp /></el-icon>
+                <el-icon v-else-if="realTimeData.tempTrend === 'down'"><ArrowDown /></el-icon>
+                <el-icon v-else><Minus /></el-icon>
+                {{ realTimeData.tempChange }}%
+              </div>
+              <div class="kpi-chart">
+                <canvas ref="tempChart"></canvas>
+              </div>
+            </el-card>
+
+            <el-card class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">实时湿度</span>
+                <el-icon class="kpi-icon"><Water /></el-icon>
+              </div>
+              <div class="kpi-value">{{ realTimeData.humidity }}%</div>
+              <div class="kpi-trend" :class="realTimeData.humiTrend">
+                <el-icon v-if="realTimeData.humiTrend === 'up'"><ArrowUp /></el-icon>
+                <el-icon v-else-if="realTimeData.humiTrend === 'down'"><ArrowDown /></el-icon>
+                <el-icon v-else><Minus /></el-icon>
+                {{ realTimeData.humiChange }}%
+              </div>
+              <div class="kpi-chart">
+                <canvas ref="humiChart"></canvas>
+              </div>
+            </el-card>
+
+            <el-card class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">设备在线率</span>
+                <el-icon class="kpi-icon"><Connection /></el-icon>
+              </div>
+              <div class="kpi-value">{{ deviceStats.onlineRate }}%</div>
+              <div class="kpi-desc">
+                {{ deviceStats.onlineCount }}/{{ deviceStats.totalCount }} 台设备在线
+              </div>
+              <div class="kpi-chart">
+                <canvas ref="onlineChart"></canvas>
+              </div>
+            </el-card>
+
+            <el-card class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">报警次数</span>
+                <el-icon class="kpi-icon"><Warning /></el-icon>
+              </div>
+              <div class="kpi-value">{{ alarmStats.count }}</div>
+              <div class="kpi-desc">
+                近24小时内
+              </div>
+              <div class="kpi-chart">
+                <canvas ref="alarmChart"></canvas>
+              </div>
+            </el-card>
+          </div>
+
+          <!-- 图表区域 -->
+          <div class="chart-grid">
+            <!-- 传感器数据趋势 -->
+            <el-card class="chart-card">
+              <template #header>
+                <div class="card-header">
+                  <span>传感器数据趋势</span>
+                  <el-select v-model="chartInterval" size="small" class="chart-interval">
+                    <el-option label="1小时" value="1h" />
+                    <el-option label="24小时" value="24h" />
+                    <el-option label="7天" value="7d" />
+                  </el-select>
+                </div>
+              </template>
+              <div class="chart-container">
+                <canvas ref="sensorChart"></canvas>
+              </div>
+            </el-card>
+
+            <!-- 设备状态分布 -->
+            <el-card class="chart-card">
+              <template #header>
+                <div class="card-header">
+                  <span>设备状态分布</span>
+                </div>
+              </template>
+              <div class="chart-container">
+                <canvas ref="deviceStatusChart"></canvas>
+              </div>
+            </el-card>
+
+            <!-- 历史数据统计 -->
+            <el-card class="chart-card">
+              <template #header>
+                <div class="card-header">
+                  <span>历史数据统计</span>
+                </div>
+              </template>
+              <div class="chart-container">
+                <canvas ref="historyChart"></canvas>
+              </div>
+            </el-card>
+
+            <!-- 设备性能雷达图 -->
+            <el-card class="chart-card">
+              <template #header>
+                <div class="card-header">
+                  <span>设备性能雷达图</span>
+                </div>
+              </template>
+              <div class="chart-container">
+                <canvas ref="radarChart"></canvas>
+              </div>
+            </el-card>
+
+            <!-- 系统健康状态 -->
+            <el-card class="chart-card">
+              <template #header>
+                <div class="card-header">
+                  <span>系统健康状态</span>
+                </div>
+              </template>
+              <div class="chart-container">
+                <canvas ref="gaugeChart"></canvas>
+              </div>
+            </el-card>
+
+            <!-- 报警事件时间线 -->
+            <el-card class="chart-card">
+              <template #header>
+                <div class="card-header">
+                  <span>报警事件时间线</span>
+                </div>
+              </template>
+              <div class="alarm-timeline">
+                <el-timeline>
+                  <el-timeline-item
+                    v-for="(alarm, index) in alarmEvents"
+                    :key="index"
+                    :timestamp="alarm.time"
+                    :type="alarm.type"
+                  >
+                    <div class="alarm-item">
+                      <h4>{{ alarm.title }}</h4>
+                      <p>{{ alarm.description }}</p>
+                      <span class="alarm-level" :class="alarm.level">{{ alarm.levelText }}</span>
+                    </div>
+                  </el-timeline-item>
+                </el-timeline>
+              </div>
+            </el-card>
+          </div>
+        </div>
+      `,
+      setup() {
+        // 响应式数据
+        const dateRange = ref(['2024-01-01', '2024-01-31'])
+        const chartInterval = ref('24h')
+        const deviceFilter = ref('')
+        const refreshInterval = ref('0')
+        let refreshTimer = null
+
+        // 实时数据
+        const realTimeData = reactive({
+          temperature: 25.6,
+          humidity: 45.2,
+          tempTrend: 'up',
+          tempChange: 2.3,
+          humiTrend: 'down',
+          humiChange: 1.5
+        })
+
+        // 设备统计
+        const deviceStats = reactive({
+          totalCount: 10,
+          onlineCount: 8,
+          onlineRate: 80
+        })
+
+        // 报警统计
+        const alarmStats = reactive({
+          count: 5
+        })
+
+        // 报警事件
+        const alarmEvents = [
+          {
+            time: '2024-01-31 14:30',
+            title: '温度异常',
+            description: '设备1温度超过阈值',
+            type: 'warning',
+            level: 'high',
+            levelText: '高'
+          },
+          {
+            time: '2024-01-31 12:15',
+            title: '湿度异常',
+            description: '设备2湿度低于阈值',
+            type: 'danger',
+            level: 'medium',
+            levelText: '中'
+          },
+          {
+            time: '2024-01-31 10:45',
+            title: '设备离线',
+            description: '设备3网络连接中断',
+            type: 'info',
+            level: 'low',
+            levelText: '低'
+          }
+        ]
+
+        // 图表引用
+        const tempChart = ref(null)
+        const humiChart = ref(null)
+        const onlineChart = ref(null)
+        const alarmChart = ref(null)
+        const sensorChart = ref(null)
+        const deviceStatusChart = ref(null)
+        const historyChart = ref(null)
+        const radarChart = ref(null)
+        const gaugeChart = ref(null)
+
+        // 图表实例
+        let tempChartInstance = null
+        let humiChartInstance = null
+        let onlineChartInstance = null
+        let alarmChartInstance = null
+        let sensorChartInstance = null
+        let deviceStatusChartInstance = null
+        let historyChartInstance = null
+        let radarChartInstance = null
+        let gaugeChartInstance = null
+
+        // 初始化图表
+        const initCharts = () => {
+          // 温度小图表
+          tempChartInstance = echarts.init(tempChart.value)
+          tempChartInstance.setOption({
+            grid: { top: 5, right: 5, bottom: 5, left: 5 },
+            xAxis: { show: false },
+            yAxis: { show: false },
+            series: [{
+              type: 'line',
+              data: [22, 23, 24, 23, 25, 26, 25.6],
+              smooth: true,
+              lineStyle: { color: '#f97316', width: 2 },
+              areaStyle: { color: 'rgba(249, 115, 22, 0.1)' }
+            }]
+          })
+
+          // 湿度小图表
+          humiChartInstance = echarts.init(humiChart.value)
+          humiChartInstance.setOption({
+            grid: { top: 5, right: 5, bottom: 5, left: 5 },
+            xAxis: { show: false },
+            yAxis: { show: false },
+            series: [{
+              type: 'line',
+              data: [48, 47, 46, 45, 46, 45.5, 45.2],
+              smooth: true,
+              lineStyle: { color: '#38bdf8', width: 2 },
+              areaStyle: { color: 'rgba(56, 189, 248, 0.1)' }
+            }]
+          })
+
+          // 在线率小图表
+          onlineChartInstance = echarts.init(onlineChart.value)
+          onlineChartInstance.setOption({
+            grid: { top: 5, right: 5, bottom: 5, left: 5 },
+            xAxis: { show: false },
+            yAxis: { show: false },
+            series: [{
+              type: 'line',
+              data: [75, 78, 80, 79, 80, 80],
+              smooth: true,
+              lineStyle: { color: '#22c55e', width: 2 },
+              areaStyle: { color: 'rgba(34, 197, 94, 0.1)' }
+            }]
+          })
+
+          // 报警小图表
+          alarmChartInstance = echarts.init(alarmChart.value)
+          alarmChartInstance.setOption({
+            grid: { top: 5, right: 5, bottom: 5, left: 5 },
+            xAxis: { show: false },
+            yAxis: { show: false },
+            series: [{
+              type: 'line',
+              data: [2, 3, 1, 2, 5],
+              smooth: true,
+              lineStyle: { color: '#ef4444', width: 2 },
+              areaStyle: { color: 'rgba(239, 68, 68, 0.1)' }
+            }]
+          })
+
+          // 传感器数据趋势
+          sensorChartInstance = echarts.init(sensorChart.value)
+          sensorChartInstance.setOption({
+            tooltip: {
+              trigger: 'axis'
+            },
+            legend: {
+              data: ['温度', '湿度'],
+              textStyle: { color: '#94a3b8' }
+            },
+            grid: {
+              left: '3%',
+              right: '4%',
+              bottom: '3%',
+              containLabel: true
+            },
+            xAxis: {
+              type: 'category',
+              boundaryGap: false,
+              data: ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+              axisLine: { lineStyle: { color: '#334155' } },
+              axisLabel: { color: '#94a3b8' }
+            },
+            yAxis: [
+              {
+                type: 'value',
+                name: '温度 (°C)',
+                axisLine: { lineStyle: { color: '#f97316' } },
+                axisLabel: { color: '#94a3b8' },
+                splitLine: { lineStyle: { color: '#334155' } }
+              },
+              {
+                type: 'value',
+                name: '湿度 (%)',
+                axisLine: { lineStyle: { color: '#38bdf8' } },
+                axisLabel: { color: '#94a3b8' },
+                splitLine: { show: false }
+              }
+            ],
+            series: [
+              {
+                name: '温度',
+                type: 'line',
+                data: [22, 21, 20, 23, 25, 26, 25, 24],
+                lineStyle: { color: '#f97316' },
+                areaStyle: { color: 'rgba(249, 115, 22, 0.1)' }
+              },
+              {
+                name: '湿度',
+                type: 'line',
+                yAxisIndex: 1,
+                data: [45, 46, 47, 45, 43, 42, 44, 45],
+                lineStyle: { color: '#38bdf8' },
+                areaStyle: { color: 'rgba(56, 189, 248, 0.1)' }
+              }
+            ]
+          })
+
+          // 设备状态分布
+          deviceStatusChartInstance = echarts.init(deviceStatusChart.value)
+          deviceStatusChartInstance.setOption({
+            tooltip: {
+              trigger: 'item'
+            },
+            legend: {
+              orient: 'vertical',
+              left: 'left',
+              textStyle: { color: '#94a3b8' }
+            },
+            series: [
+              {
+                type: 'pie',
+                radius: '60%',
+                center: ['50%', '50%'],
+                data: [
+                  { value: 8, name: '在线' },
+                  { value: 2, name: '离线' }
+                ],
+                itemStyle: {
+                  borderRadius: 8,
+                  borderColor: '#1e293b',
+                  borderWidth: 2
+                },
+                label: {
+                  color: '#f8fafc'
+                },
+                colors: ['#22c55e', '#ef4444']
+              }
+            ]
+          })
+
+          // 历史数据统计
+          historyChartInstance = echarts.init(historyChart.value)
+          historyChartInstance.setOption({
+            tooltip: {
+              trigger: 'axis'
+            },
+            grid: {
+              left: '3%',
+              right: '4%',
+              bottom: '3%',
+              containLabel: true
+            },
+            xAxis: {
+              type: 'category',
+              data: ['1月25日', '1月26日', '1月27日', '1月28日', '1月29日', '1月30日', '1月31日'],
+              axisLine: { lineStyle: { color: '#334155' } },
+              axisLabel: { color: '#94a3b8' }
+            },
+            yAxis: {
+              type: 'value',
+              axisLine: { lineStyle: { color: '#334155' } },
+              axisLabel: { color: '#94a3b8' },
+              splitLine: { lineStyle: { color: '#334155' } }
+            },
+            series: [
+              {
+                type: 'bar',
+                data: [120, 132, 101, 134, 90, 230, 210],
+                itemStyle: {
+                  color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                    { offset: 0, color: '#38bdf8' },
+                    { offset: 1, color: '#0ea5e9' }
+                  ])
+                }
+              }
+            ]
+          })
+
+          // 设备性能雷达图
+          radarChartInstance = echarts.init(radarChart.value)
+          radarChartInstance.setOption({
+            tooltip: {},
+            radar: {
+              indicator: [
+                { name: '响应速度', max: 100 },
+                { name: '稳定性', max: 100 },
+                { name: '能耗', max: 100 },
+                { name: '准确率', max: 100 },
+                { name: '连接质量', max: 100 },
+                { name: '数据完整性', max: 100 }
+              ],
+              splitArea: {
+                areaStyle: {
+                  color: ['rgba(56, 189, 248, 0.05)', 'rgba(56, 189, 248, 0.1)']
+                }
+              },
+              axisLine: {
+                lineStyle: {
+                  color: 'rgba(56, 189, 248, 0.5)'
+                }
+              },
+              splitLine: {
+                lineStyle: {
+                  color: 'rgba(56, 189, 248, 0.3)'
+                }
+              }
+            },
+            series: [
+              {
+                type: 'radar',
+                data: [
+                  {
+                    value: [85, 90, 75, 95, 88, 92],
+                    name: '设备性能',
+                    areaStyle: {
+                      color: 'rgba(56, 189, 248, 0.2)'
+                    },
+                    lineStyle: {
+                      color: '#38bdf8'
+                    },
+                    itemStyle: {
+                      color: '#38bdf8'
+                    }
+                  }
+                ]
+              }
+            ]
+          })
+
+          // 系统健康状态仪表盘
+          gaugeChartInstance = echarts.init(gaugeChart.value)
+          gaugeChartInstance.setOption({
+            tooltip: {
+              formatter: '{a} <br/>{b} : {c}%'
+            },
+            series: [
+              {
+                name: '系统健康',
+                type: 'gauge',
+                detail: {
+                  formatter: '{value}%',
+                  textStyle: {
+                    color: '#f8fafc'
+                  }
+                },
+                data: [
+                  {
+                    value: 85,
+                    name: '健康状态'
+                  }
+                ],
+                axisLine: {
+                  lineStyle: {
+                    width: 30,
+                    color: [
+                      [0.3, '#ef4444'],
+                      [0.7, '#f59e0b'],
+                      [1, '#22c55e']
+                    ]
+                  }
+                },
+                pointer: {
+                  itemStyle: {
+                    color: '#38bdf8'
+                  }
+                },
+                axisTick: {
+                  distance: -30,
+                  length: 8,
+                  lineStyle: {
+                    color: '#f8fafc',
+                    width: 2
+                  }
+                },
+                splitLine: {
+                  distance: -30,
+                  length: 30,
+                  lineStyle: {
+                    color: '#f8fafc',
+                    width: 2
+                  }
+                },
+                axisLabel: {
+                  color: '#94a3b8',
+                  distance: -40,
+                  fontSize: 12
+                },
+                title: {
+                  color: '#94a3b8',
+                  fontSize: 14
+                }
+              }
+            ]
+          })
+        }
+
+        // 刷新数据
+        const refreshData = () => {
+          // 模拟数据刷新
+          realTimeData.temperature = (20 + Math.random() * 10).toFixed(1)
+          realTimeData.humidity = (30 + Math.random() * 40).toFixed(1)
+          realTimeData.tempTrend = Math.random() > 0.5 ? 'up' : 'down'
+          realTimeData.humiTrend = Math.random() > 0.5 ? 'up' : 'down'
+          realTimeData.tempChange = (Math.random() * 5).toFixed(1)
+          realTimeData.humiChange = (Math.random() * 5).toFixed(1)
+          
+          // 重新渲染图表
+          initCharts()
+        }
+
+        // 导出数据
+        const handleExport = (format) => {
+          // 模拟数据导出
+          console.log(`导出数据为 ${format}:`, {
+            dateRange: dateRange.value,
+            deviceFilter: deviceFilter.value,
+            realTimeData,
+            deviceStats,
+            alarmStats
+          })
+          ElMessage.success(`数据已成功导出为 ${format.toUpperCase()} 格式`)
+        }
+
+        // 设置刷新间隔
+        const setRefreshInterval = () => {
+          // 清除之前的定时器
+          if (refreshTimer) {
+            clearInterval(refreshTimer)
+            refreshTimer = null
+          }
+
+          // 设置新的定时器
+          const interval = parseInt(refreshInterval.value)
+          if (interval > 0) {
+            refreshTimer = setInterval(() => {
+              refreshData()
+            }, interval)
+          }
+        }
+
+        // 监听刷新间隔变化
+        watch(refreshInterval, () => {
+          setRefreshInterval()
+        })
+
+        // 响应式调整
+        const handleResize = () => {
+          tempChartInstance?.resize()
+          humiChartInstance?.resize()
+          onlineChartInstance?.resize()
+          alarmChartInstance?.resize()
+          sensorChartInstance?.resize()
+          deviceStatusChartInstance?.resize()
+          historyChartInstance?.resize()
+          radarChartInstance?.resize()
+          gaugeChartInstance?.resize()
+        }
+
+        onMounted(() => {
+          initCharts()
+          window.addEventListener('resize', handleResize)
+        })
+
+        return {
+          dateRange,
+          chartInterval,
+          deviceFilter,
+          refreshInterval,
+          realTimeData,
+          deviceStats,
+          alarmStats,
+          alarmEvents,
+          tempChart,
+          humiChart,
+          onlineChart,
+          alarmChart,
+          sensorChart,
+          deviceStatusChart,
+          historyChart,
+          radarChart,
+          gaugeChart,
+          refreshData,
+          handleExport
+        }
+      }
+    }
+
+    // 设备管理组件
+    const Devices = {
+      template: `
+        <div class="devices">
+          <!-- 页面标题 -->
+          <div class="page-header">
+            <h1>设备管理</h1>
+            <div class="header-actions">
+              <el-button type="primary" @click="addDevice">
+                <el-icon><Plus /></el-icon> 添加设备
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 搜索和筛选 -->
+          <div class="search-filter">
+            <el-input
+              v-model="searchQuery"
+              placeholder="搜索设备名称或ID"
+              prefix-icon="Search"
+              class="search-input"
+            />
+            <el-select v-model="statusFilter" placeholder="设备状态" class="filter-select">
+              <el-option label="全部" value="" />
+              <el-option label="在线" value="online" />
+              <el-option label="离线" value="offline" />
+            </el-select>
+            <el-select v-model="typeFilter" placeholder="设备类型" class="filter-select">
+              <el-option label="全部" value="" />
+              <el-option label="温度传感器" value="temperature" />
+              <el-option label="湿度传感器" value="humidity" />
+              <el-option label="烟雾传感器" value="smoke" />
+            </el-select>
+          </div>
+
+          <!-- 设备列表 -->
+          <el-card class="devices-card">
+            <template #header>
+              <div class="card-header">
+                <span>设备列表</span>
+                <span class="device-count">{{ filteredDevices.length }} 台设备</span>
+              </div>
+            </template>
+            <el-table :data="filteredDevices" stripe style="width: 100%" class="devices-table">
+              <el-table-column prop="id" label="设备ID" width="120" />
+              <el-table-column prop="name" label="设备名称" />
+              <el-table-column prop="type" label="设备类型" width="120">
+                <template #default="scope">
+                  <el-tag :type="getTypeTagType(scope.row.type)">
+                    {{ getTypeText(scope.row.type) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="status" label="状态" width="100">
+                <template #default="scope">
+                  <el-tag :type="scope.row.status === 'online' ? 'success' : 'danger'">
+                    {{ scope.row.status === 'online' ? '在线' : '离线' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="location" label="位置" width="150" />
+              <el-table-column prop="lastOnline" label="最后在线" width="180" />
+              <el-table-column label="操作" width="200" fixed="right">
+                <template #default="scope">
+                  <el-button type="primary" size="small" @click="viewDevice(scope.row.id)">
+                    查看
+                  </el-button>
+                  <el-button type="success" size="small" @click="editDevice(scope.row.id)">
+                    编辑
+                  </el-button>
+                  <el-button type="danger" size="small" @click="deleteDevice(scope.row.id)">
+                    删除
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-card>
+        </div>
+      `,
+      setup() {
+        const router = VueRouter.useRouter()
+
+        // 响应式数据
+        const searchQuery = ref('')
+        const statusFilter = ref('')
+        const typeFilter = ref('')
+
+        // 设备数据
+        const devices = ref([
+          {
+            id: 'dev001',
+            name: '温度传感器1',
+            type: 'temperature',
+            status: 'online',
+            location: '机房A',
+            lastOnline: '2024-01-31 14:30:00'
+          },
+          {
+            id: 'dev002',
+            name: '湿度传感器1',
+            type: 'humidity',
+            status: 'online',
+            location: '机房A',
+            lastOnline: '2024-01-31 14:25:00'
+          },
+          {
+            id: 'dev003',
+            name: '烟雾传感器1',
+            type: 'smoke',
+            status: 'offline',
+            location: '机房B',
+            lastOnline: '2024-01-31 10:45:00'
+          },
+          {
+            id: 'dev004',
+            name: '温度传感器2',
+            type: 'temperature',
+            status: 'online',
+            location: '机房B',
+            lastOnline: '2024-01-31 14:20:00'
+          },
+          {
+            id: 'dev005',
+            name: '湿度传感器2',
+            type: 'humidity',
+            status: 'online',
+            location: '机房C',
+            lastOnline: '2024-01-31 14:15:00'
+          }
+        ])
+
+        // 过滤设备
+        const filteredDevices = computed(() => {
+          return devices.value.filter(device => {
+            const matchesSearch = device.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+                                device.id.toLowerCase().includes(searchQuery.value.toLowerCase())
+            const matchesStatus = !statusFilter.value || device.status === statusFilter.value
+            const matchesType = !typeFilter.value || device.type === typeFilter.value
+            return matchesSearch && matchesStatus && matchesType
+          })
+        })
+
+        // 获取设备类型标签类型
+        const getTypeTagType = (type) => {
+          const types = {
+            temperature: 'warning',
+            humidity: 'info',
+            smoke: 'danger'
+          }
+          return types[type] || 'default'
+        }
+
+        // 获取设备类型文本
+        const getTypeText = (type) => {
+          const types = {
+            temperature: '温度传感器',
+            humidity: '湿度传感器',
+            smoke: '烟雾传感器'
+          }
+          return types[type] || type
+        }
+
+        // 查看设备详情
+        const viewDevice = (id) => {
+          router.push(`/device/${id}`)
+        }
+
+        // 编辑设备
+        const editDevice = (id) => {
+          ElMessage.info('编辑设备功能开发中')
+        }
+
+        // 删除设备
+        const deleteDevice = async (id) => {
+          try {
+            await ElMessageBox.confirm('确定要删除该设备吗？', '删除设备', {
+              confirmButtonText: '确定',
+              cancelButtonText: '取消',
+              type: 'warning'
+            })
+            const index = devices.value.findIndex(device => device.id === id)
+            if (index !== -1) {
+              devices.value.splice(index, 1)
+              ElMessage.success('设备删除成功')
+            }
+          } catch (error) {
+            // 取消删除
+          }
+        }
+
+        // 添加设备
+        const addDevice = () => {
+          ElMessage.info('添加设备功能开发中')
+        }
+
+        return {
+          searchQuery,
+          statusFilter,
+          typeFilter,
+          devices,
+          filteredDevices,
+          getTypeTagType,
+          getTypeText,
+          viewDevice,
+          editDevice,
+          deleteDevice,
+          addDevice
+        }
+      }
+    }
+
+    // 设备详情组件
+    const DeviceDetail = {
+      template: `
+        <div class="device-detail">
+          <!-- 页面标题 -->
+          <div class="page-header">
+            <h1>设备详情</h1>
+            <el-button type="primary" @click="goBack">
+              <el-icon><ArrowLeft /></el-icon> 返回列表
+            </el-button>
+          </div>
+
+          <!-- 设备信息 -->
+          <el-card class="device-info-card">
+            <template #header>
+              <div class="card-header">
+                <span>设备基本信息</span>
+              </div>
+            </template>
+            <div class="device-info">
+              <div class="info-item">
+                <span class="info-label">设备ID:</span>
+                <span class="info-value">{{ device.id }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">设备名称:</span>
+                <span class="info-value">{{ device.name }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">设备类型:</span>
+                <el-tag :type="getTypeTagType(device.type)">{{ getTypeText(device.type) }}</el-tag>
+              </div>
+              <div class="info-item">
+                <span class="info-label">设备状态:</span>
+                <el-tag :type="device.status === 'online' ? 'success' : 'danger'">
+                  {{ device.status === 'online' ? '在线' : '离线' }}
+                </el-tag>
+              </div>
+              <div class="info-item">
+                <span class="info-label">设备位置:</span>
+                <span class="info-value">{{ device.location }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">最后在线:</span>
+                <span class="info-value">{{ device.lastOnline }}</span>
+              </div>
+            </div>
+          </el-card>
+
+          <!-- 实时数据 -->
+          <el-card class="realtime-data-card">
+            <template #header>
+              <div class="card-header">
+                <span>实时数据</span>
+                <el-button type="primary" size="small" @click="refreshData">
+                  <el-icon><Refresh /></el-icon> 刷新
+                </el-button>
+              </div>
+            </template>
+            <div class="realtime-data">
+              <div class="data-item">
+                <span class="data-label">温度:</span>
+                <span class="data-value">{{ realTimeData.temperature }}°C</span>
+              </div>
+              <div class="data-item">
+                <span class="data-label">湿度:</span>
+                <span class="data-value">{{ realTimeData.humidity }}%</span>
+              </div>
+              <div class="data-item">
+                <span class="data-label">光照:</span>
+                <span class="data-value">{{ realTimeData.light }} lux</span>
+              </div>
+              <div class="data-item">
+                <span class="data-label">烟雾:</span>
+                <span class="data-value">{{ realTimeData.smoke }} ppm</span>
+              </div>
+            </div>
+          </el-card>
+
+          <!-- 历史数据 -->
+          <el-card class="history-data-card">
+            <template #header>
+              <div class="card-header">
+                <span>历史数据</span>
+                <el-date-picker
+                  v-model="dateRange"
+                  type="daterange"
+                  range-separator="至"
+                  start-placeholder="开始日期"
+                  end-placeholder="结束日期"
+                  value-format="YYYY-MM-DD"
+                  size="small"
+                />
+              </div>
+            </template>
+            <div class="chart-container">
+              <canvas ref="historyChart"></canvas>
+            </div>
+          </el-card>
+
+          <!-- 设备控制 -->
+          <el-card class="device-control-card">
+            <template #header>
+              <div class="card-header">
+                <span>设备控制</span>
+              </div>
+            </template>
+            <div class="control-buttons">
+              <el-button type="primary" @click="controlDevice('fan', !controlStatus.fan)">
+                {{ controlStatus.fan ? '关闭风扇' : '打开风扇' }}
+              </el-button>
+              <el-button type="success" @click="controlDevice('valve', !controlStatus.valve)">
+                {{ controlStatus.valve ? '关闭电磁阀' : '打开电磁阀' }}
+              </el-button>
+              <el-button type="warning" @click="controlDevice('alarm', !controlStatus.alarm)">
+                {{ controlStatus.alarm ? '关闭报警器' : '打开报警器' }}
+              </el-button>
+            </div>
+          </el-card>
+        </div>
+      `,
+      setup() {
+        const router = VueRouter.useRouter()
+        const route = VueRouter.useRoute()
+
+        // 设备数据
+        const device = ref({
+          id: route.params.id || 'dev001',
+          name: '温度传感器1',
+          type: 'temperature',
+          status: 'online',
+          location: '机房A',
+          lastOnline: '2024-01-31 14:30:00'
+        })
+
+        // 实时数据
+        const realTimeData = reactive({
+          temperature: 25.6,
+          humidity: 45.2,
+          light: 1200,
+          smoke: 50
+        })
+
+        // 控制状态
+        const controlStatus = reactive({
+          fan: false,
+          valve: false,
+          alarm: false
+        })
+
+        // 日期范围
+        const dateRange = ref(['2024-01-01', '2024-01-31'])
+
+        // 图表引用
+        const historyChart = ref(null)
+        let historyChartInstance = null
+
+        // 获取设备类型标签类型
+        const getTypeTagType = (type) => {
+          const types = {
+            temperature: 'warning',
+            humidity: 'info',
+            smoke: 'danger'
+          }
+          return types[type] || 'default'
+        }
+
+        // 获取设备类型文本
+        const getTypeText = (type) => {
+          const types = {
+            temperature: '温度传感器',
+            humidity: '湿度传感器',
+            smoke: '烟雾传感器'
+          }
+          return types[type] || type
+        }
+
+        // 返回列表
+        const goBack = () => {
+          router.push('/devices')
+        }
+
+        // 刷新数据
+        const refreshData = () => {
+          realTimeData.temperature = (20 + Math.random() * 10).toFixed(1)
+          realTimeData.humidity = (30 + Math.random() * 40).toFixed(1)
+          realTimeData.light = Math.floor(500 + Math.random() * 1500)
+          realTimeData.smoke = Math.floor(30 + Math.random() * 70)
+        }
+
+        // 控制设备
+        const controlDevice = (deviceType, status) => {
+          controlStatus[deviceType] = status
+          ElMessage.success(`${status ? '打开' : '关闭'}${deviceType === 'fan' ? '风扇' : deviceType === 'valve' ? '电磁阀' : '报警器'}成功`)
+        }
+
+        // 初始化图表
+        const initChart = () => {
+          historyChartInstance = echarts.init(historyChart.value)
+          historyChartInstance.setOption({
+            tooltip: {
+              trigger: 'axis'
+            },
+            legend: {
+              data: ['温度', '湿度', '光照', '烟雾'],
+              textStyle: { color: '#94a3b8' }
+            },
+            grid: {
+              left: '3%',
+              right: '4%',
+              bottom: '3%',
+              containLabel: true
+            },
+            xAxis: {
+              type: 'category',
+              boundaryGap: false,
+              data: ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+              axisLine: { lineStyle: { color: '#334155' } },
+              axisLabel: { color: '#94a3b8' }
+            },
+            yAxis: {
+              type: 'value',
+              axisLine: { lineStyle: { color: '#334155' } },
+              axisLabel: { color: '#94a3b8' },
+              splitLine: { lineStyle: { color: '#334155' } }
+            },
+            series: [
+              {
+                name: '温度',
+                type: 'line',
+                data: [22, 21, 20, 23, 25, 26, 25, 24],
+                lineStyle: { color: '#f97316' }
+              },
+              {
+                name: '湿度',
+                type: 'line',
+                data: [45, 46, 47, 45, 43, 42, 44, 45],
+                lineStyle: { color: '#38bdf8' }
+              },
+              {
+                name: '光照',
+                type: 'line',
+                data: [1000, 900, 800, 1200, 1500, 1400, 1300, 1100],
+                lineStyle: { color: '#f59e0b' }
+              },
+              {
+                name: '烟雾',
+                type: 'line',
+                data: [40, 45, 50, 48, 52, 55, 53, 49],
+                lineStyle: { color: '#ef4444' }
+              }
+            ]
+          })
+        }
+
+        onMounted(() => {
+          initChart()
+          window.addEventListener('resize', () => {
+            historyChartInstance?.resize()
+          })
+        })
+
+        return {
+          device,
+          realTimeData,
+          controlStatus,
+          dateRange,
+          historyChart,
+          getTypeTagType,
+          getTypeText,
+          goBack,
+          refreshData,
+          controlDevice
+        }
+      }
+    }
+
+    // 数据管理组件
+    const Data = {
+      template: `
+        <div class="data">
+          <!-- 页面标题 -->
+          <div class="page-header">
+            <h1>数据管理</h1>
+            <div class="header-actions">
+              <el-button type="success" @click="exportData">
+                <el-icon><Download /></el-icon> 导出数据
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 数据筛选 -->
+          <div class="data-filter">
+            <el-date-picker
+              v-model="dateRange"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              value-format="YYYY-MM-DD"
+              class="date-picker"
+            />
+            <el-select v-model="deviceFilter" placeholder="选择设备" class="filter-select">
+              <el-option label="全部设备" value="" />
+              <el-option label="温度传感器1" value="dev001" />
+              <el-option label="湿度传感器1" value="dev002" />
+              <el-option label="烟雾传感器1" value="dev003" />
+            </el-select>
+            <el-select v-model="sensorFilter" placeholder="选择传感器" class="filter-select">
+              <el-option label="全部传感器" value="" />
+              <el-option label="温度" value="temperature" />
+              <el-option label="湿度" value="humidity" />
+              <el-option label="光照" value="light" />
+              <el-option label="烟雾" value="smoke" />
+            </el-select>
+            <el-button type="primary" @click="queryData">
+              <el-icon><Search /></el-icon> 查询
+            </el-button>
+          </div>
+
+          <!-- 数据列表 -->
+          <el-card class="data-card">
+            <template #header>
+              <div class="card-header">
+                <span>历史数据</span>
+                <span class="data-count">{{ dataList.length }} 条记录</span>
+              </div>
+            </template>
+            <el-table :data="dataList" stripe style="width: 100%" class="data-table">
+              <el-table-column prop="time" label="时间" width="180" />
+              <el-table-column prop="deviceId" label="设备ID" width="120" />
+              <el-table-column prop="deviceName" label="设备名称" />
+              <el-table-column prop="temperature" label="温度(°C)" width="100" />
+              <el-table-column prop="humidity" label="湿度(%)" width="100" />
+              <el-table-column prop="light" label="光照(lux)" width="100" />
+              <el-table-column prop="smoke" label="烟雾(ppm)" width="100" />
+            </el-table>
+            <div class="pagination">
+              <el-pagination
+                v-model:current-page="currentPage"
+                v-model:page-size="pageSize"
+                :page-sizes="[10, 20, 50, 100]"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="dataList.length"
+                @size-change="handleSizeChange"
+                @current-change="handleCurrentChange"
+              />
+            </div>
+          </el-card>
+
+          <!-- 数据可视化 -->
+          <el-card class="chart-card">
+            <template #header>
+              <div class="card-header">
+                <span>数据可视化</span>
+              </div>
+            </template>
+            <div class="chart-container">
+              <canvas ref="dataChart"></canvas>
+            </div>
+          </el-card>
+        </div>
+      `,
+      setup() {
+        // 响应式数据
+        const dateRange = ref(['2024-01-01', '2024-01-31'])
+        const deviceFilter = ref('')
+        const sensorFilter = ref('')
+        const currentPage = ref(1)
+        const pageSize = ref(10)
+
+        // 模拟数据
+        const dataList = ref([
+          {
+            time: '2024-01-31 14:30:00',
+            deviceId: 'dev001',
+            deviceName: '温度传感器1',
+            temperature: 25.6,
+            humidity: 45.2,
+            light: 1200,
+            smoke: 50
+          },
+          {
+            time: '2024-01-31 14:25:00',
+            deviceId: 'dev002',
+            deviceName: '湿度传感器1',
+            temperature: 25.4,
+            humidity: 46.1,
+            light: 1180,
+            smoke: 48
+          },
+          {
+            time: '2024-01-31 14:20:00',
+            deviceId: 'dev001',
+            deviceName: '温度传感器1',
+            temperature: 25.2,
+            humidity: 45.8,
+            light: 1190,
+            smoke: 49
+          },
+          {
+            time: '2024-01-31 14:15:00',
+            deviceId: 'dev003',
+            deviceName: '烟雾传感器1',
+            temperature: 25.0,
+            humidity: 46.5,
+            light: 1170,
+            smoke: 52
+          },
+          {
+            time: '2024-01-31 14:10:00',
+            deviceId: 'dev002',
+            deviceName: '湿度传感器1',
+            temperature: 24.8,
+            humidity: 47.0,
+            light: 1160,
+            smoke: 51
+          }
+        ])
+
+        // 图表引用
+        const dataChart = ref(null)
+        let dataChartInstance = null
+
+        // 查询数据
+        const queryData = () => {
+          ElMessage.success('数据查询成功')
+        }
+
+        // 导出数据
+        const exportData = () => {
+          ElMessage.success('数据导出成功')
+        }
+
+        // 分页处理
+        const handleSizeChange = (size) => {
+          pageSize.value = size
+        }
+
+        const handleCurrentChange = (current) => {
+          currentPage.value = current
+        }
+
+        // 初始化图表
+        const initChart = () => {
+          dataChartInstance = echarts.init(dataChart.value)
+          dataChartInstance.setOption({
+            tooltip: {
+              trigger: 'axis'
+            },
+            legend: {
+              data: ['温度', '湿度', '光照', '烟雾'],
+              textStyle: { color: '#94a3b8' }
+            },
+            grid: {
+              left: '3%',
+              right: '4%',
+              bottom: '3%',
+              containLabel: true
+            },
+            xAxis: {
+              type: 'category',
+              boundaryGap: false,
+              data: ['10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30'],
+              axisLine: { lineStyle: { color: '#334155' } },
+              axisLabel: { color: '#94a3b8' }
+            },
+            yAxis: {
+              type: 'value',
+              axisLine: { lineStyle: { color: '#334155' } },
+              axisLabel: { color: '#94a3b8' },
+              splitLine: { lineStyle: { color: '#334155' } }
+            },
+            series: [
+              {
+                name: '温度',
+                type: 'line',
+                data: [24.5, 24.8, 25.0, 25.2, 25.5, 25.8, 26.0, 25.8, 25.6, 25.4],
+                lineStyle: { color: '#f97316' }
+              },
+              {
+                name: '湿度',
+                type: 'line',
+                data: [48.0, 47.5, 47.0, 46.5, 46.0, 45.5, 45.0, 45.2, 45.5, 45.8],
+                lineStyle: { color: '#38bdf8' }
+              },
+              {
+                name: '光照',
+                type: 'line',
+                data: [1000, 1050, 1100, 1150, 1200, 1250, 1300, 1280, 1250, 1200],
+                lineStyle: { color: '#f59e0b' }
+              },
+              {
+                name: '烟雾',
+                type: 'line',
+                data: [45, 46, 47, 48, 49, 50, 51, 52, 51, 50],
+                lineStyle: { color: '#ef4444' }
+              }
+            ]
+          })
+        }
+
+        onMounted(() => {
+          initChart()
+          window.addEventListener('resize', () => {
+            dataChartInstance?.resize()
+          })
+        })
+
+        return {
+          dateRange,
+          deviceFilter,
+          sensorFilter,
+          currentPage,
+          pageSize,
+          dataList,
+          dataChart,
+          queryData,
+          exportData,
+          handleSizeChange,
+          handleCurrentChange
+        }
+      }
+    }
+
+    // 系统管理组件
+    const System = {
+      template: `
+        <div class="system">
+          <!-- 页面标题 -->
+          <div class="page-header">
+            <h1>系统管理</h1>
+          </div>
+
+          <!-- 标签页 -->
+          <el-tabs v-model="activeTab">
+            <el-tab-pane label="用户管理" name="users">
+              <div class="users-management">
+                <div class="header-actions">
+                  <el-button type="primary" @click="addUser">
+                    <el-icon><Plus /></el-icon> 添加用户
+                  </el-button>
+                </div>
+                <el-table :data="users" stripe style="width: 100%" class="users-table">
+                  <el-table-column prop="id" label="用户ID" width="100" />
+                  <el-table-column prop="username" label="用户名" />
+                  <el-table-column prop="role" label="角色" width="100">
+                    <template #default="scope">
+                      <el-tag :type="scope.row.role === 'admin' ? 'warning' : 'info'">
+                        {{ scope.row.role === 'admin' ? '管理员' : '普通用户' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="createdAt" label="创建时间" width="180" />
+                  <el-table-column label="操作" width="200" fixed="right">
+                    <template #default="scope">
+                      <el-button type="primary" size="small" @click="editUser(scope.row.id)">
+                        编辑
+                      </el-button>
+                      <el-button type="danger" size="small" @click="deleteUser(scope.row.id)">
+                        删除
+                      </el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="系统日志" name="logs">
+              <div class="system-logs">
+                <el-table :data="logs" stripe style="width: 100%" class="logs-table">
+                  <el-table-column prop="time" label="时间" width="180" />
+                  <el-table-column prop="type" label="类型" width="100">
+                    <template #default="scope">
+                      <el-tag :type="scope.row.type === 'error' ? 'danger' : scope.row.type === 'warning' ? 'warning' : 'info'">
+                        {{ scope.row.type === 'error' ? '错误' : scope.row.type === 'warning' ? '警告' : '信息' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="message" label="消息" />
+                  <el-table-column prop="user" label="操作人" width="120" />
+                </el-table>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="系统设置" name="settings">
+              <div class="system-settings">
+                <el-form :model="settings" class="settings-form">
+                  <el-form-item label="系统名称">
+                    <el-input v-model="settings.systemName" />
+                  </el-form-item>
+                  <el-form-item label="自动刷新间隔">
+                    <el-select v-model="settings.refreshInterval" placeholder="选择刷新间隔">
+                      <el-option label="10秒" value="10" />
+                      <el-option label="30秒" value="30" />
+                      <el-option label="1分钟" value="60" />
+                      <el-option label="5分钟" value="300" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="报警阈值">
+                    <el-input-number v-model="settings.alarmThreshold" :min="0" :max="100" :step="1" />
+                  </el-form-item>
+                  <el-form-item>
+                    <el-button type="primary" @click="saveSettings">保存设置</el-button>
+                  </el-form-item>
+                </el-form>
+              </div>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+      `,
+      setup() {
+        // 响应式数据
+        const activeTab = ref('users')
+
+        // 用户数据
+        const users = ref([
+          {
+            id: 1,
+            username: 'admin',
+            role: 'admin',
+            createdAt: '2024-01-01 00:00:00'
+          },
+          {
+            id: 2,
+            username: 'user1',
+            role: 'user',
+            createdAt: '2024-01-02 00:00:00'
+          },
+          {
+            id: 3,
+            username: 'user2',
+            role: 'user',
+            createdAt: '2024-01-03 00:00:00'
+          }
+        ])
+
+        // 日志数据
+        const logs = ref([
+          {
+            time: '2024-01-31 14:30:00',
+            type: 'info',
+            message: '用户admin登录系统',
+            user: 'admin'
+          },
+          {
+            time: '2024-01-31 14:25:00',
+            type: 'warning',
+            message: '设备dev003离线',
+            user: 'system'
+          },
+          {
+            time: '2024-01-31 14:20:00',
+            type: 'error',
+            message: '温度传感器数据异常',
+            user: 'system'
+          }
+        ])
+
+        // 系统设置
+        const settings = reactive({
+          systemName: '物联网管理系统',
+          refreshInterval: '30',
+          alarmThreshold: 80
+        })
+
+        // 添加用户
+        const addUser = () => {
+          ElMessage.info('添加用户功能开发中')
+        }
+
+        // 编辑用户
+        const editUser = (id) => {
+          ElMessage.info('编辑用户功能开发中')
+        }
+
+        // 删除用户
+        const deleteUser = async (id) => {
+          try {
+            await ElMessageBox.confirm('确定要删除该用户吗？', '删除用户', {
+              confirmButtonText: '确定',
+              cancelButtonText: '取消',
+              type: 'warning'
+            })
+            const index = users.value.findIndex(user => user.id === id)
+            if (index !== -1) {
+              users.value.splice(index, 1)
+              ElMessage.success('用户删除成功')
+            }
+          } catch (error) {
+            // 取消删除
+          }
+        }
+
+        // 保存设置
+        const saveSettings = () => {
+          ElMessage.success('设置保存成功')
+        }
+
+        return {
+          activeTab,
+          users,
+          logs,
+          settings,
+          addUser,
+          editUser,
+          deleteUser,
+          saveSettings
+        }
+      }
+    }
+
+    // 个人中心组件
+    const Profile = {
+      template: `
+        <div class="profile">
+          <!-- 页面标题 -->
+          <div class="page-header">
+            <h1>个人中心</h1>
+          </div>
+
+          <!-- 个人信息 -->
+          <el-card class="profile-card">
+            <template #header>
+              <div class="card-header">
+                <span>个人信息</span>
+              </div>
+            </template>
+            <div class="profile-info">
+              <div class="info-item">
+                <span class="info-label">用户名:</span>
+                <span class="info-value">{{ userInfo.username }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">角色:</span>
+                <el-tag :type="userInfo.role === 'admin' ? 'warning' : 'info'">
+                  {{ userInfo.role === 'admin' ? '管理员' : '普通用户' }}
+                </el-tag>
+              </div>
+              <div class="info-item">
+                <span class="info-label">登录时间:</span>
+                <span class="info-value">{{ userInfo.loginTime }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">上次登录:</span>
+                <span class="info-value">{{ userInfo.lastLogin }}</span>
+              </div>
+            </div>
+          </el-card>
+
+          <!-- 修改密码 -->
+          <el-card class="password-card">
+            <template #header>
+              <div class="card-header">
+                <span>修改密码</span>
+              </div>
+            </template>
+            <el-form :model="passwordForm" :rules="passwordRules" ref="passwordFormRef" class="password-form">
+              <el-form-item prop="oldPassword">
+                <el-input
+                  v-model="passwordForm.oldPassword"
+                  type="password"
+                  placeholder="原密码"
+                  show-password
+                />
+              </el-form-item>
+              <el-form-item prop="newPassword">
+                <el-input
+                  v-model="passwordForm.newPassword"
+                  type="password"
+                  placeholder="新密码"
+                  show-password
+                />
+              </el-form-item>
+              <el-form-item prop="confirmPassword">
+                <el-input
+                  v-model="passwordForm.confirmPassword"
+                  type="password"
+                  placeholder="确认新密码"
+                  show-password
+                />
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" @click="changePassword">修改密码</el-button>
+              </el-form-item>
+            </el-form>
+          </el-card>
+
+          <!-- 系统偏好设置 -->
+          <el-card class="preference-card">
+            <template #header>
+              <div class="card-header">
+                <span>系统偏好设置</span>
+              </div>
+            </template>
+            <div class="preferences">
+              <div class="preference-item">
+                <span class="preference-label">主题:</span>
+                <el-select v-model="preferences.theme" placeholder="选择主题">
+                  <el-option label="深色主题" value="dark" />
+                  <el-option label="浅色主题" value="light" />
+                </el-select>
+              </div>
+              <div class="preference-item">
+                <span class="preference-label">语言:</span>
+                <el-select v-model="preferences.language" placeholder="选择语言">
+                  <el-option label="中文" value="zh-CN" />
+                  <el-option label="英文" value="en-US" />
+                </el-select>
+              </div>
+              <div class="preference-item">
+                <span class="preference-label">通知:</span>
+                <el-switch v-model="preferences.notifications" />
+              </div>
+              <el-button type="primary" @click="savePreferences">保存设置</el-button>
+            </div>
+          </el-card>
+        </div>
+      `,
+      setup() {
+        // 个人信息
+        const userInfo = reactive({
+          username: 'admin',
+          role: 'admin',
+          loginTime: '2024-01-31 14:30:00',
+          lastLogin: '2024-01-30 10:00:00'
+        })
+
+        // 密码表单
+        const passwordFormRef = ref(null)
+        const passwordForm = reactive({
+          oldPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        })
+
+        const passwordRules = {
+          oldPassword: [
+            { required: true, message: '请输入原密码', trigger: 'blur' }
+          ],
+          newPassword: [
+            { required: true, message: '请输入新密码', trigger: 'blur' },
+            { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+          ],
+          confirmPassword: [
+            { required: true, message: '请确认新密码', trigger: 'blur' },
+            {
+              validator: (rule, value, callback) => {
+                if (value !== passwordForm.newPassword) {
+                  callback(new Error('两次输入的密码不一致'))
+                } else {
+                  callback()
+                }
+              },
+              trigger: 'blur'
+            }
+          ]
+        }
+
+        // 偏好设置
+        const preferences = reactive({
+          theme: 'dark',
+          language: 'zh-CN',
+          notifications: true
+        })
+
+        // 修改密码
+        const changePassword = async () => {
+          if (!passwordFormRef.value) return
+          
+          await passwordFormRef.value.validate(async (valid) => {
+            if (valid) {
+              ElMessage.success('密码修改成功')
+              passwordForm.oldPassword = ''
+              passwordForm.newPassword = ''
+              passwordForm.confirmPassword = ''
+            }
+          })
+        }
+
+        // 保存偏好设置
+        const savePreferences = () => {
+          ElMessage.success('设置保存成功')
+        }
+
+        return {
+          userInfo,
+          passwordFormRef,
+          passwordForm,
+          passwordRules,
+          preferences,
+          changePassword,
+          savePreferences
+        }
+      }
+    }
+
+    // App组件
+    const App = {
+      template: `
+        <div class="app">
+          <template v-if="isLoggedIn">
+            <!-- 侧边栏 -->
+            <el-aside :width="isCollapse ? '64px' : '200px'" class="sidebar">
+              <div class="logo">
+                <el-icon v-if="isCollapse"><ElemeFilled /></el-icon>
+                <span v-else>物联网管理系统</span>
+              </div>
+              <el-menu
+                :default-active="activeMenu"
+                class="sidebar-menu"
+                :collapse="isCollapse"
+                background-color="#0f172a"
+                text-color="#94a3b8"
+                active-text-color="#38bdf8"
+                :router="true"
+              >
+                <el-menu-item index="/dashboard">
+                  <el-icon><HomeFilled /></el-icon>
+                  <template #title>数据驾驶舱</template>
+                </el-menu-item>
+                <el-menu-item index="/devices">
+                  <el-icon><Monitor /></el-icon>
+                  <template #title>设备管理</template>
+                </el-menu-item>
+                <el-menu-item index="/data">
+                  <el-icon><DataLine /></el-icon>
+                  <template #title>数据管理</template>
+                </el-menu-item>
+                <el-menu-item index="/system">
+                  <el-icon><Settings /></el-icon>
+                  <template #title>系统管理</template>
+                </el-menu-item>
+              </el-menu>
+            </el-aside>
+            
+            <!-- 主内容区 -->
+            <el-container class="main-container">
+              <!-- 顶部导航栏 -->
+              <el-header class="header">
+                <div class="header-left">
+                  <el-button
+                    type="text"
+                    class="collapse-btn"
+                    @click="toggleCollapse"
+                  >
+                    <el-icon v-if="isCollapse"><ArrowRight /></el-icon>
+                    <el-icon v-else><ArrowLeft /></el-icon>
+                  </el-button>
+                  <el-breadcrumb separator="/" class="breadcrumb">
+                    <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+                    <el-breadcrumb-item>{{ breadcrumbName }}</el-breadcrumb-item>
+                  </el-breadcrumb>
+                </div>
+                <div class="header-right">
+                  <el-dropdown>
+                    <el-button type="text" class="user-btn">
+                      <el-icon><Bell /></el-icon>
+                      <span class="badge">3</span>
+                    </el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item>消息1</el-dropdown-item>
+                        <el-dropdown-item>消息2</el-dropdown-item>
+                        <el-dropdown-item>消息3</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                  <el-dropdown>
+                    <el-button type="text" class="user-btn">
+                      <el-avatar :size="32" src="https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png" />
+                      <span>{{ username }}</span>
+                      <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                    </el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item @click="goToProfile">个人中心</el-dropdown-item>
+                        <el-dropdown-item @click="logout">退出登录</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
+              </el-header>
+              
+              <!-- 内容区域 -->
+              <el-main class="content">
+                <router-view v-slot="{ Component }">
+                  <transition name="fade" mode="out-in">
+                    <component :is="Component" />
+                  </transition>
+                </router-view>
+              </el-main>
+            </el-container>
+          </template>
+          <template v-else>
+            <router-view />
+          </template>
+        </div>
+      `,
+      setup() {
+        const router = VueRouter.useRouter()
+        const route = VueRouter.useRoute()
+
+        const isCollapse = ref(false)
+        const isLoggedIn = ref(localStorage.getItem('isLoggedIn') === 'true')
+        const username = ref(localStorage.getItem('username') || 'admin')
+
+        const toggleCollapse = () => {
+          isCollapse.value = !isCollapse.value
+        }
+
+        const activeMenu = computed(() => {
+          return route.path
+        })
+
+        const breadcrumbName = computed(() => {
+          const routes = {
+            '/dashboard': '数据驾驶舱',
+            '/devices': '设备管理',
+            '/data': '数据管理',
+            '/system': '系统管理',
+            '/profile': '个人中心'
+          }
+          return routes[route.path] || '首页'
+        })
+
+        const goToProfile = () => {
+          router.push('/profile')
+        }
+
+        const logout = () => {
+          localStorage.removeItem('isLoggedIn')
+          localStorage.removeItem('username')
+          isLoggedIn.value = false
+          router.push('/login')
+          ElMessage.success('已退出登录')
+        }
+
+        return {
+          isCollapse,
+          isLoggedIn,
+          username,
+          activeMenu,
+          breadcrumbName,
+          toggleCollapse,
+          goToProfile,
+          logout
+        }
+      }
+    }
+
+    // 路由配置
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [
+        {
+          path: '/login',
+          name: 'Login',
+          component: Login,
+          meta: { title: '登录' }
+        },
+        {
+          path: '/',
+          redirect: '/dashboard'
+        },
+        {
+          path: '/dashboard',
+          name: 'Dashboard',
+          component: Dashboard,
+          meta: { title: '数据驾驶舱' }
+        },
+        {
+          path: '/devices',
+          name: 'Devices',
+          component: Devices,
+          meta: { title: '设备管理' }
+        },
+        {
+          path: '/device/:id',
+          name: 'DeviceDetail',
+          component: DeviceDetail,
+          meta: { title: '设备详情' }
+        },
+        {
+          path: '/data',
+          name: 'Data',
+          component: Data,
+          meta: { title: '数据管理' }
+        },
+        {
+          path: '/system',
+          name: 'System',
+          component: System,
+          meta: { title: '系统管理' }
+        },
+        {
+          path: '/profile',
+          name: 'Profile',
+          component: Profile,
+          meta: { title: '个人中心' }
+        }
+      ]
+    })
+
+    // 路由守卫
+    router.beforeEach((to, from, next) => {
+      // 设置页面标题
+      document.title = to.meta.title ? `${to.meta.title} - 物联网管理系统` : '物联网管理系统'
+      
+      // 检查登录状态
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
+      
+      if (to.path === '/login') {
+        next()
+      } else {
+        if (isLoggedIn) {
+          next()
+        } else {
+          next('/login')
+        }
+      }
+    })
+
+    // 创建应用
+    const app = createApp(App)
+    app.use(router)
+    app.use(ElementPlus)
+    app.mount('#app')
+  </script>
+
+  <style>
+    /* 全局样式 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.1) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(249, 115, 22, 0.1) 0%, transparent 20%);
+      background-attachment: fixed;
+    }
+
+    /* App样式 */
+    .app {
+      display: flex;
+      height: 100vh;
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+
+    .sidebar {
+      background-color: #1e293b;
+      border-right: 1px solid #334155;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .sidebar::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 1px;
+      height: 100%;
+      background: linear-gradient(to bottom, transparent, #38bdf8, transparent);
+    }
+
+    .logo {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: bold;
+      color: #38bdf8;
+      border-bottom: 1px solid #334155;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    }
+
+    .sidebar-menu {
+      margin-top: 20px;
+    }
+
+    .main-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .header {
+      height: 60px;
+      background-color: #1e293b;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .collapse-btn {
+      color: #94a3b8;
+    }
+
+    .breadcrumb {
+      font-size: 14px;
+    }
+
+    .breadcrumb .el-breadcrumb__item:last-child .el-breadcrumb__inner {
+      color: #38bdf8;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .user-btn {
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      background-color: #ef4444;
+      color: white;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      background-color: #0f172a;
+    }
+
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: opacity 0.3s ease;
+    }
+
+    .fade-enter-from,
+    .fade-leave-to {
+      opacity: 0;
+    }
+
+    /* 登录页面样式 */
+    .login-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-container::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.1) 0%, transparent 70%);
+      animation: pulse 10s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        opacity: 0.5;
+      }
+      50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 0.5;
+      }
+    }
+
+    .login-box {
+      width: 400px;
+      background-color: rgba(30, 41, 59, 0.95);
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      backdrop-filter: blur(10px);
+      position: relative;
+      z-index: 1;
+      transition: all 0.3s ease;
+    }
+
+    .login-box:hover {
+      box-shadow: 0 25px 70px rgba(56, 189, 248, 0.3);
+      transform: translateY(-5px);
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .login-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .logo-icon {
+      font-size: 32px;
+      color: #38bdf8;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-5px);
+      }
+    }
+
+    .login-header h2 {
+      font-size: 24px;
+      font-weight: bold;
+      color: #38bdf8;
+      margin-bottom: 10px;
+    }
+
+    .login-header p {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+
+    .login-form {
+      margin-bottom: 20px;
+    }
+
+    .login-input {
+      background-color: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #f8fafc;
+      transition: all 0.3s ease;
+    }
+
+    .login-input:hover {
+      border-color: rgba(56, 189, 248, 0.6);
+    }
+
+    .login-input:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    }
+
+    .remember-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .forgot-link {
+      font-size: 14px;
+      color: #38bdf8;
+      transition: all 0.3s ease;
+    }
+
+    .forgot-link:hover {
+      color: #0ea5e9;
+    }
+
+    .login-btn {
+      width: 100%;
+      height: 40px;
+      font-size: 16px;
+      background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
+      border: none;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.4);
+    }
+
+    .login-btn:active {
+      transform: translateY(0);
+    }
+
+    .login-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: all 0.6s ease;
+    }
+
+    .login-btn:hover::before {
+      left: 100%;
+    }
+
+    .login-tip {
+      text-align: center;
+      font-size: 14px;
+      color: #64748b;
+      margin-top: 20px;
+      background-color: rgba(15, 23, 42, 0.5);
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .login-tip h4 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #38bdf8;
+      margin-bottom: 10px;
+    }
+
+    .login-tip p {
+      margin: 5px 0;
+    }
+
+    .tip-highlight {
+      color: #f8fafc;
+      font-weight: 600;
+      background-color: rgba(56, 189, 248, 0.2);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* 数据驾驶舱样式 */
+    .dashboard {
+      width: 100%;
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .page-header h1 {
+      font-size: 24px;
+      font-weight: bold;
+      color: #f8fafc;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .date-picker {
+      width: 300px;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .kpi-card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+
+    .kpi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .kpi-title {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+
+    .kpi-icon {
+      font-size: 20px;
+      color: #38bdf8;
+    }
+
+    .kpi-value {
+      font-size: 32px;
+      font-weight: bold;
+      color: #f8fafc;
+      margin-bottom: 5px;
+    }
+
+    .kpi-trend {
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+
+    .kpi-trend.up {
+      color: #22c55e;
+    }
+
+    .kpi-trend.down {
+      color: #ef4444;
+    }
+
+    .kpi-trend.stable {
+      color: #f59e0b;
+    }
+
+    .kpi-desc {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 10px;
+    }
+
+    .kpi-chart {
+      height: 60px;
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+      gap: 20px;
+    }
+
+    /* 响应式布局 */
+    @media screen and (max-width: 1200px) {
+      .kpi-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+      }
+      
+      .chart-grid {
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 15px;
+      }
+    }
+
+    @media screen and (max-width: 768px) {
+      .app {
+        flex-direction: column;
+      }
+      
+      .sidebar {
+        width: 100% !important;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid #334155;
+      }
+      
+      .sidebar-menu {
+        display: flex;
+        overflow-x: auto;
+        margin-top: 0;
+        padding: 10px 0;
+      }
+      
+      .sidebar-menu .el-menu {
+        display: flex;
+        flex-direction: row;
+        width: auto;
+      }
+      
+      .sidebar-menu .el-menu-item {
+        white-space: nowrap;
+        margin: 0 5px;
+      }
+      
+      .main-container {
+        flex: 1;
+      }
+      
+      .header {
+        padding: 0 10px;
+      }
+      
+      .content {
+        padding: 10px;
+      }
+      
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      
+      .header-actions {
+        width: 100%;
+        flex-wrap: wrap;
+      }
+      
+      .date-picker {
+        width: 100%;
+      }
+      
+      .kpi-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+      }
+      
+      .chart-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      
+      .chart-container {
+        height: 250px;
+      }
+      
+      .search-filter {
+        flex-direction: column;
+      }
+      
+      .search-input {
+        width: 100%;
+      }
+      
+      .filter-select {
+        width: 100%;
+      }
+      
+      .device-info {
+        grid-template-columns: 1fr;
+      }
+      
+      .realtime-data {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      }
+      
+      .control-buttons {
+        flex-direction: column;
+      }
+      
+      .login-box {
+        width: 90%;
+        padding: 30px 20px;
+      }
+    }
+
+    @media screen and (max-width: 480px) {
+      .kpi-value {
+        font-size: 24px;
+      }
+      
+      .kpi-chart {
+        height: 40px;
+      }
+      
+      .chart-container {
+        height: 200px;
+      }
+      
+      .data-value {
+        font-size: 20px;
+      }
+    }
+
+    .chart-card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .chart-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    }
+
+    .chart-card:hover {
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-header span {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f8fafc;
+    }
+
+    .chart-interval {
+      width: 100px;
+    }
+
+    .chart-container {
+      height: 300px;
+    }
+
+    .alarm-timeline {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .alarm-item {
+      padding: 10px;
+      background-color: #0f172a;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+
+    .alarm-item h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f8fafc;
+      margin-bottom: 5px;
+    }
+
+    .alarm-item p {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 5px;
+    }
+
+    .alarm-level {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .alarm-level.high {
+      background-color: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .alarm-level.medium {
+      background-color: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    .alarm-level.low {
+      background-color: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
+    }
+
+    /* 设备管理样式 */
+    .devices {
+      width: 100%;
+    }
+
+    .search-filter {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .search-input {
+      width: 300px;
+    }
+
+    .filter-select {
+      width: 150px;
+    }
+
+    .devices-card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .devices-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    }
+
+    .devices-card:hover {
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+
+    .device-count {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+
+    .devices-table {
+      background-color: #0f172a;
+    }
+
+    .el-table th {
+      background-color: #1e293b;
+      color: #f8fafc;
+      border-bottom: 1px solid #334155;
+    }
+
+    .el-table td {
+      background-color: #0f172a;
+      color: #f8fafc;
+      border-bottom: 1px solid #334155;
+    }
+
+    .el-table tr:hover > td {
+      background-color: #1e293b !important;
+    }
+
+    /* 设备详情样式 */
+    .device-detail {
+      width: 100%;
+    }
+
+    .device-info-card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .device-info-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    }
+
+    .device-info-card:hover {
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+
+    .device-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+
+    .info-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .info-label {
+      font-size: 14px;
+      color: #94a3b8;
+      width: 80px;
+    }
+
+    .info-value {
+      font-size: 14px;
+      color: #f8fafc;
+    }
+
+    .realtime-data-card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .realtime-data-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    }
+
+    .realtime-data-card:hover {
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+
+    .realtime-data {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 20px;
+    }
+
+    .data-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .data-label {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+
+    .data-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #f8fafc;
+    }
+
+    .history-data-card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .history-data-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    }
+
+    .history-data-card:hover {
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+
+    .device-control-card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .device-control-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    }
+
+    .device-control-card:hover {
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+
+    .control-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* 数据管理样式 */
+    .data {
+      width: 100%;
+    }
+
+    .data-filter {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .data-card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .data-count {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+
+    .data-table {
+      background-color: #0f172a;
+    }
+
+    .pagination {
+      margin-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    /* 系统管理样式 */
+    .system {
+      width: 100%;
+    }
+
+    .users-management {
+      margin-top: 20px;
+    }
+
+    .users-table {
+      background-color: #0f172a;
+    }
+
+    .logs-table {
+      background-color: #0f172a;
+    }
+
+    .system-settings {
+      margin-top: 20px;
+    }
+
+    .settings-form {
+      max-width: 500px;
+    }
+
+    /* 个人中心样式 */
+    .profile {
+      width: 100%;
+    }
+
+    .profile-card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .profile-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+
+    .password-card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .password-form {
+      max-width: 500px;
+    }
+
+    .preference-card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+    }
+
+    .preferences {
+      max-width: 500px;
+    }
+
+    .preference-item {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 15px;
+    }
+
+    .preference-label {
+      font-size: 14px;
+      color: #94a3b8;
+      width: 80px;
+    }
+
+    /* 响应式样式 */
+    @media (max-width: 768px) {
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      
+      .header-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+      
+      .date-picker {
+        width: 200px;
+      }
+      
+      .kpi-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .chart-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .search-filter {
+        flex-direction: column;
+      }
+      
+      .search-input,
+      .filter-select {
+        width: 100%;
+      }
+      
+      .control-buttons {
+        flex-direction: column;
+      }
+      
+      .control-buttons .el-button {
+        width: 100%;
+      }
+    }
+
+    /* 滚动条样式 */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</body>
+</html>

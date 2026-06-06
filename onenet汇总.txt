@@ -1,0 +1,1065 @@
+========================================
+OneNET 平台信息汇总
+========================================
+
+【产品信息】
+产品ID: K3GGK1Sj7Q
+设备名称: stm
+产品 access_key: SVkBB+UvO1Xv2X2TEYPly9U9dZehAZH3ydM9p0dr7S8=
+
+【用户信息】
+用户名: CM002022419369
+用户ID: 1398087
+用户 access_key: da5571350be24e258342dc6054ce6176
+
+【API地址】
+基础URL: https://iot-api.heclouds.com
+查询设备属性: https://iot-api.heclouds.com/thingmodel/query-device-property
+设置设备属性: https://iot-api.heclouds.com/thingmodel/set-device-property
+
+【MQTT地址】
+MQTT服务器: mqtts.heclouds.com
+MQTTS端口: 8883
+MQTT端口: 1883
+
+【MQTT Topic】
+属性上报: $sys/K3GGK1Sj7Q/stm/thing/property/post
+属性上报回复: $sys/K3GGK1Sj7Q/stm/thing/property/post/reply
+属性设置: $sys/K3GGK1Sj7Q/stm/thing/property/set
+属性设置回复: $sys/K3GGK1Sj7Q/stm/thing/property/set_reply
+
+【物模型属性】
+传感器数据:
+- temperature (温度): float 类型, 只读
+- humidity (湿度): float 类型, 只读
+- light (光照): int 类型, 只读
+- smoke (烟雾): int 类型, 只读
+
+控制设备:
+- fan (风扇): bool 类型, 可读可写
+- valve (电磁阀): bool 类型, 可读可写
+- alarm (报警器): bool 类型, 可读可写
+
+【数据上报格式】
+{
+  "id": "123",
+  "version": "1.0",
+  "msgId": "K3GGK1Sj7Q",
+  "params": {
+    "temperature": {"value": 43.6, "time": 1774612419324},
+    "humidity": {"value": 56.4, "time": 1774612419324},
+    "light": {"value": 937, "time": 1774612419324},
+    "smoke": {"value": 94, "time": 1774612419324},
+    "fan": {"value": true, "time": 1774612419324},
+    "valve": {"value": false, "time": 1774612419324},
+    "alarm": {"value": false, "time": 1774612419324}
+  }
+}
+
+【属性设置格式 - 小程序发送】
+{
+  "product_id": "K3GGK1Sj7Q",
+  "device_name": "stm",
+  "params": {
+    "fan": true,
+    "valve": false,
+    "alarm": false
+  }
+}
+
+【TCP通信格式】
+STM32 -> ESP32 (传感器数据+控制状态):
+{"T":25,"H":60,"L":500,"S":2000,"F":1,"V":0,"A":0}
+T=温度, H=湿度, L=光照, S=烟雾
+F=风扇状态, V=电磁阀状态, A=报警器状态
+1=开, 0=关
+
+ESP32 -> STM32 (控制命令):
+{"F":1,"V":0,"A":0}
+F=风扇, V=电磁阀, A=报警器
+1=开, 0=关
+
+【自动控制场景】
+场景1: 烟雾超标报警
+- 阈值: 烟雾 > 1500ppm
+- 动作: 自动开启报警器和风扇
+
+场景2: 温度过高降温
+- 阈值: 温度 > 35°C
+- 动作: 自动开启风扇
+
+【STM32优化内容】
+1. 断连重连优化:
+   - 发送失败时立即重置连接状态
+   - **使用TIM3定时器中断实现精准5秒重连**
+   - 连接断开后能自动重连
+   - 每5秒检查一次WiFi和OneNET连接状态
+
+2. 启动画面优化:
+   - **上电立即开始后台连接，不等待**
+   - 避免启动后长时间黑屏
+   - OLED立即显示传感器数据
+
+3. 数据上报优化:
+   - **数据变化时才上报**（减少网络流量）
+   - **每5秒强制上报一次**（确保数据及时更新）
+   - 发送失败后自动重试
+
+4. 后台连接实现:
+   - **非阻塞状态机**实现
+   - 每步操作间隔100ms
+   - 自动处理连接失败和重试
+
+5. 自动控制逻辑:
+   - 内置自动控制场景
+   - 根据传感器数据自动控制设备
+   - 与云平台控制指令协同工作
+
+6. 显示优化:
+   - 右上角显示连接状态（C/W/X）
+   - 实时显示传感器数据
+   - 隐藏连接过程的调试信息
+
+【Token生成方式】
+方式1 - 产品级别Token (用于API调用):
+  res: products/K3GGK1Sj7Q/devices/stm
+  key: 产品 access_key
+  version: 2018-10-31
+
+方式2 - 用户级别Token (用于API调用):
+  res: userid/1398087
+  key: 用户 access_key
+  version: 2020-05-29
+
+方式3 - 设备级别Token (用于MQTT连接):
+  res: products/K3GGK1Sj7Q/devices/stm
+  key: 产品 access_key
+  version: 2018-10-31
+
+【当前使用的Token】
+version=2018-10-31&res=products%2FK3GGK1Sj7Q%2Fdevices%2Fstm&et=1787733887&method=md5&sign=7pieyIabazlMcHuGGmZ8qQ%3D%3D
+
+【手机热点WiFi配置】
+SSID: hello
+密码: 12345678
+
+TCP端口: 8080
+
+【TCP服务器配置】
+服务器IP: 10.243.13.197
+
+【完整上云流程】
+========================================
+1. STM32控制器阶段
+   - 通过传感器采集机房环境数据（温度、湿度、烟雾等）
+   - 对采集的数据进行实时处理和异常检测
+   - 通过TCP客户端协议将处理后的数据发送给ESP32网关
+
+2. ESP32网关节点
+   - 建立WiFi连接并维护网络稳定性
+   - 作为TCP服务器接收STM32发送的数据
+   - 通过MQTT协议将数据转发到OneNET云平台
+
+3. OneNET云平台处理
+   - 接收MQTT数据并进行存储和持久化
+   - 根据物模型定义处理数据格式和校验
+   - 提供API接口供小程序访问数据
+
+4. 微信小程序交互
+   - 通过API接口获取实时数据进行监控展示
+   - 接收用户控制指令并发送到云平台
+   - 提供数据可视化和历史数据查询功能
+
+5. 自动控制闭环
+   - 云平台根据预设规则进行智能决策
+   - 发送控制指令到ESP32网关
+   - ESP32将控制指令转发给STM32执行
+   - STM32根据指令控制硬件设备（如空调、报警器）
+
+【数据流向总结】
+传感器数据 → STM32处理 → TCP传输 → ESP32网关 → MQTT协议 → OneNET云平台 → API接口 → 微信小程序
+用户控制指令 → 微信小程序 → API接口 → OneNET云平台 → MQTT协议 → ESP32网关 → TCP传输 → STM32执行 → 硬件控制
+
+【关键技术点】
+- 通信协议：TCP/IP（本地通信）、MQTT（云端通信）
+- 数据处理：实时数据过滤、异常检测、数据格式转换
+- 云平台功能：数据存储、物模型管理、规则引擎、API服务
+- 小程序功能：实时监控、远程控制、数据可视化、历史查询
+- 自动控制：基于阈值的自动报警、基于规则的智能控制
+- 定时器中断：使用TIM3实现精准定时重连
+- 状态机：非阻塞后台连接管理
+
+【系统参数配置】
+- 传感器读取间隔: 100ms
+- 数据发送间隔: 5000ms
+- 显示刷新间隔: 200ms
+- 连接重试间隔: 5000ms
+- 重连检查间隔: 5000ms (定时器中断)
+- 最小上报间隔: 200ms
+- 强制上报间隔: 5000ms
+
+【文件结构】
+- User/main_onenet.c - 主程序
+- User/onenet.c - OneNET通信实现
+- User/onenet.h - OneNET头文件
+- User/MqttKit.c - MQTT协议实现
+- Hardware/Timer.c - 定时器中断实现
+- Hardware/ESP8266.c - WiFi模块驱动
+- Hardware/UART.c - 串口通信
+- Hardware/LED.c - LED控制
+- Hardware/Buzzer.c - 蜂鸣器控制
+- Hardware/DHT11.c - 温湿度传感器
+- Hardware/BH1750.c - 光照传感器
+- Hardware/MQ2.c - 烟雾传感器
+
+【MQTT连接函数】
+========================================
+
+1. OneNet_DevLink() - 连接OneNET服务器
+----------------------------------------
+**函数原型：**
+```c
+_Bool OneNet_DevLink(void);
+```
+
+**函数功能：**
+- 与OneNET平台建立MQTT连接
+- 处理TCP连接和MQTT协议握手
+- 检查连接状态并返回结果
+
+**实现代码：**
+```c
+_Bool OneNet_DevLink(void)
+{
+    MQTT_PACKET_STRUCTURE mqttPacket = {NULL, 0, 0, 0};  // 协议包
+    unsigned char *dataPtr;
+    _Bool status = 1;  // 默认失败
+    
+    // 1. 先关闭可能存在的旧连接
+    ESP8266_CloseTCP();
+    Delay_ms(200);
+    
+    // 2. 建立 TCP 连接到 OneNET 服务器
+    if(!ESP8266_StartTCP(ONENET_SERVER_IP, ONENET_SERVER_PORT))
+    {
+        return 1;  // TCP 连接失败
+    }
+    Delay_ms(200);
+    
+    // 3. 生成 MQTT 连接数据包
+    if(MQTT_PacketConnect(PROID, AUTH_INFO, DEVID, 256, 1, MQTT_QOS_LEVEL0, NULL, NULL, 0, &mqttPacket) == 0)
+    {
+        // 4. 发送 MQTT 连接数据包
+        ESP8266_SendData(mqttPacket._data, mqttPacket._len);
+        
+        // 5. 等待平台响应（10秒超时）
+        dataPtr = ESP8266_GetIPD(1000);
+        if(dataPtr != NULL)
+        {
+            // 6. 解析 MQTT 响应
+            if(MQTT_UnPacketRecv(dataPtr) == MQTT_PKT_CONNACK)
+            {
+                // 7. 检查连接确认码
+                switch(MQTT_UnPacketConnectAck(dataPtr))
+                {
+                    case 0: status = 0; break;  // 连接成功
+                    case 1: break;  // 协议版本不可接受
+                    case 2: break;  // 标识符被拒绝
+                    case 3: break;  // 服务器不可用
+                    case 4: break;  // 用户名或密码错误
+                    case 5: break;  // 未授权
+                    default: break;
+                }
+            }
+        }
+        
+        // 8. 释放 MQTT 数据包
+        MQTT_DeleteBuffer(&mqttPacket);
+    }
+    
+    return status;  // 0表示成功，1表示失败
+}
+```
+
+**参数说明：**
+- **PROID**: 产品ID (K3GGK1Sj7Q)
+- **AUTH_INFO**: 鉴权Token
+- **DEVID**: 设备名称 (stm)
+- **ONENET_SERVER_IP**: OneNET服务器IP (mqtts.heclouds.com)
+- **ONENET_SERVER_PORT**: OneNET MQTT端口 (1883)
+
+**返回值：**
+- 0: 连接成功
+- 1: 连接失败
+
+2. MQTT_PacketConnect() - 生成MQTT连接数据包
+----------------------------------------
+**函数原型：**
+```c
+uint8 MQTT_PacketConnect(const int8 *user, const int8 *password, const int8 *devid,
+                        uint16 cTime, uint1 clean_session, uint1 qos,
+                        const int8 *will_topic, const int8 *will_msg, int32 will_retain,
+                        MQTT_PACKET_STRUCTURE *mqttPacket);
+```
+
+**函数功能：**
+- 生成MQTT CONNECT数据包
+- 包含客户端ID、用户名、密码等信息
+- 配置MQTT连接参数
+
+**参数说明：**
+- **user**: 用户名（产品ID）
+- **password**: 密码（Token）
+- **devid**: 设备ID
+- **cTime**: 连接超时时间
+- **clean_session**: 清除会话标志
+- **qos**: 服务质量等级
+- **will_topic**: 遗嘱主题
+- **will_msg**: 遗嘱消息
+- **will_retain**: 遗嘱保留标志
+- **mqttPacket**: MQTT数据包结构
+
+**返回值：**
+- 0: 成功
+- 非0: 失败
+
+3. MQTT_UnPacketConnectAck() - 解析MQTT连接确认
+----------------------------------------
+**函数原型：**
+```c
+uint8 MQTT_UnPacketConnectAck(unsigned char *data);
+```
+
+**函数功能：**
+- 解析MQTT CONNACK数据包
+- 获取连接结果码
+
+**参数说明：**
+- **data**: 接收到的MQTT数据包
+
+**返回值：**
+- 0: 连接成功
+- 1: 协议版本不可接受
+- 2: 标识符被拒绝
+- 3: 服务器不可用
+- 4: 用户名或密码错误
+- 5: 未授权
+
+4. OneNet_SendData() - 发送数据到OneNET
+----------------------------------------
+**函数原型：**
+```c
+uint8_t OneNet_SendData(void);
+```
+
+**函数功能：**
+- 生成传感器数据的JSON格式
+- 打包为MQTT消息
+- 发送到OneNET平台
+
+**实现流程：**
+1. 生成JSON格式数据
+2. 打包为MQTT PUBLISH消息
+3. 发送到OneNET
+4. 检查发送结果
+
+**返回值：**
+- 0: 发送成功
+- 1: 发送失败
+
+【详细技术实现】
+========================================
+
+1. ESP8266 上云实现
+----------------------------------------
+**实现原理：**
+- **硬件连接**：ESP8266通过UART与STM32通信，使用AT指令控制
+- **网络配置**：
+  1. 初始化ESP8266（AT指令测试）
+  2. 设置为STA模式（AT+CWMODE=1）
+  3. 连接WiFi热点（AT+CWJAP="SSID","密码"）
+  4. 建立TCP连接到OneNET服务器（AT+CIPSTART="TCP","mqtts.heclouds.com",1883）
+
+**核心函数：**
+- `ESP8266_Init()` - 初始化WiFi模块
+- `ESP8266_ConnectWiFi()` - 连接WiFi热点
+- `ESP8266_StartTCP()` - 建立TCP连接
+- `ESP8266_SendData()` - 发送数据
+- `ESP8266_GetIPD()` - 接收数据
+
+**数据流程：**
+```
+STM32 → UART → ESP8266 → WiFi → OneNET服务器
+OneNET服务器 → WiFi → ESP8266 → UART → STM32
+```
+
+2. MQTT 协议实现
+----------------------------------------
+**实现原理：**
+- 使用MqttKit.c实现MQTT协议栈
+- 支持MQTT v3.1.1协议
+- 实现了MQTT连接、发布、订阅等核心功能
+
+**核心函数：**
+- `MQTT_PacketConnect()` - 生成MQTT连接数据包
+- `MQTT_PacketSaveData()` - 生成数据发布数据包
+- `MQTT_UnPacketRecv()` - 解析收到的MQTT数据包
+- `MQTT_UnPacketConnectAck()` - 解析连接确认数据包
+
+**MQTT消息格式：**
+- 固定头部：消息类型、标志位、剩余长度
+- 可变头部：根据消息类型不同而不同
+- 负载：实际数据内容
+
+3. 重连机制实现
+----------------------------------------
+**实现原理：**
+- 使用TIM3定时器中断实现精准5秒重连
+- 非阻塞状态机管理连接过程
+- 自动处理连接失败和重试
+
+**核心实现：**
+- **定时器中断**：TIM3配置为1ms中断，累计5000ms触发重连
+- **状态机**：
+  - CONN_STATE_WIFI_TEST - 测试AT指令
+  - CONN_STATE_WIFI_SET_MODE - 设置WiFi模式
+  - CONN_STATE_WIFI_CONNECT - 连接WiFi
+  - CONN_STATE_WIFI_WAIT - 等待WiFi连接完成
+  - CONN_STATE_ONENET_CLOSE_TCP - 关闭旧TCP
+  - CONN_STATE_ONENET_START_TCP - 建立TCP连接
+  - CONN_STATE_ONENET_MQTT_CONN - MQTT连接
+
+**重连流程：**
+1. 检测到连接断开
+2. 触发重连状态机
+3. 按步骤执行连接操作
+4. 连接成功后恢复正常工作
+
+4. 数据上报实现
+----------------------------------------
+**实现原理：**
+- 传感器数据变化时上报
+- 每5秒强制上报一次
+- 发送失败后自动重试
+
+**核心函数：**
+- `ReadSensors()` - 读取传感器数据
+- `MqttOnenet_Savedata()` - 生成JSON格式数据
+- `OneNet_SendData()` - 发送数据到OneNET
+- `SendToCloud()` - 管理数据发送逻辑
+
+**数据格式转换：**
+1. 传感器数据采集
+2. 转换为JSON格式
+3. 打包为MQTT消息
+4. 通过TCP发送到OneNET
+
+5. 自动控制实现
+----------------------------------------
+**实现原理：**
+- 基于阈值的自动控制
+- 与云平台控制指令协同工作
+- 实时响应传感器数据变化
+
+**控制逻辑：**
+- 烟雾 > 1500ppm：自动开启报警器和风扇
+- 温度 > 35°C：自动开启风扇
+- 云平台指令优先于本地自动控制
+
+6. 定时器中断实现
+----------------------------------------
+**实现原理：**
+- 使用TIM3定时器实现1ms精度中断
+- 用于重连计时和系统时间管理
+
+**配置参数：**
+- 系统时钟：72MHz
+- 预分频器：71（72MHz/72=1MHz）
+- 计数值：999（1000-1）
+- 中断频率：1000Hz（1ms）
+
+**核心功能：**
+- 重连计时器：累计到5000ms触发重连
+- 系统时间：提供精准的系统计时
+
+7. 状态机实现
+----------------------------------------
+**实现原理：**
+- 非阻塞状态机管理连接过程
+- 每步操作有独立的状态和超时处理
+- 自动处理连接失败和重试
+
+**状态转换：**
+```
+IDLE → WIFI_TEST → WIFI_SET_MODE → WIFI_CONNECT → WIFI_WAIT → 
+ONENET_CLOSE_TCP → ONENET_START_TCP → ONENET_MQTT_CONN → IDLE
+```
+
+**错误处理：**
+- 每个状态最多重试3-5次
+- 失败后自动回退到合适的状态
+- 确保连接过程的稳定性
+
+【AT指令参考】
+基础设置
+AT                              # 测试指令，返回 OK
+AT+RST                          # 重启模块
+AT+GMR                          # 查看固件版本
+ATE0                            # 关闭回显
+AT+CWMODE=1                     # 设置WiFi模式为Station
+
+WiFi 连接
+AT+CWJAP="SSID","密码"          # 连接WiFi
+AT+CWQAP                        # 断开WiFi
+AT+CIFSR                        # 查询IP地址
+
+MQTT 配置与连接
+AT+MQTTUSERCFG=0,1,"设备名","产品ID","Token",0,0,""
+AT+MQTTCONN=0,"mqtts.heclouds.com",1883,1
+AT+MQTTCLEAN=0                  # 断开MQTT连接
+
+发布与订阅
+AT+MQTTPUB=0,"主题","数据",0,0
+AT+MQTTSUB=0,"主题",0
+
+示例：发布属性设置回复
+AT+MQTTPUB=0,"$sys/I9QA6fjf16/STM32_Host/thing/property/set_reply","{\"id\":\"6\",\"code\":200,\"msg\":\"success\"}",0,0
+
+【常见问题排查】
+1. WiFi连接失败
+   - 检查WiFi名称和密码
+   - 检查WiFi信号强度
+   - 检查ESP8266固件版本
+
+2. MQTT连接失败
+   - 检查Token是否正确
+   - 检查产品ID和设备名称
+   - 检查网络连接
+
+3. 数据上报失败
+   - 检查JSON格式是否正确
+   - 检查MQTT Topic是否正确
+   - 检查网络连接状态
+
+4. 重连不生效
+   - 检查TIM3定时器配置
+   - 检查中断处理函数
+   - 检查状态机逻辑
+
+【性能优化】
+1. 网络优化
+   - 数据变化时才上报，减少网络流量
+   - 合理设置重连间隔，避免频繁重连
+   - 使用MQTT QoS 0，减少网络开销
+
+2. 系统优化
+   - 使用非阻塞状态机，提高系统响应速度
+   - 合理设置传感器采样间隔，平衡实时性和功耗
+   - 使用定时器中断，提高时间精度
+
+3. 稳定性优化
+   - 完善的错误处理机制
+   - 自动重连和故障恢复
+   - 数据校验和错误检测
+
+========================================
+【微信小程序相关】
+========================================
+
+【小程序API配置】
+小程序使用以下配置连接OneNET平台：
+```javascript
+const API_CONFIG = {
+  productId: 'K3GGK1Sj7Q',
+  deviceName: 'stm',
+  token: 'version=2018-10-31&res=products%2FK3GGK1Sj7Q%2Fdevices%2Fstm&et=1787733887&method=md5&sign=7pieyIabazlMcHuGGmZ8qQ%3D%3D',
+  baseUrl: 'https://iot-api.heclouds.com'
+}
+```
+
+【小程序API接口】
+
+1. 查询设备属性
+----------------------------------------
+**接口地址：** GET https://iot-api.heclouds.com/thingmodel/query-device-property
+
+**请求参数：**
+```
+product_id: K3GGK1Sj7Q
+device_name: stm
+```
+
+**请求头：**
+```
+authorization: {Token}
+```
+
+**返回格式：**
+```json
+{
+  "code": 0,
+  "data": [
+    { "identifier": "temperature", "value": 25.5 },
+    { "identifier": "humidity", "value": 60.0 },
+    { "identifier": "light", "value": 500 },
+    { "identifier": "smoke", "value": 100 },
+    { "identifier": "fan", "value": false },
+    { "identifier": "valve", "value": false },
+    { "identifier": "alarm", "value": false }
+  ]
+}
+```
+
+**小程序调用示例：**
+```javascript
+queryDeviceData() {
+  wx.request({
+    url: `${API_CONFIG.baseUrl}/thingmodel/query-device-property`,
+    method: 'GET',
+    data: {
+      product_id: API_CONFIG.productId,
+      device_name: API_CONFIG.deviceName
+    },
+    header: {
+      'authorization': API_CONFIG.token
+    },
+    success: (res) => {
+      if (res.data && res.data.code === 0) {
+        const dataArray = res.data.data
+        // 解析数据
+        this.parseDeviceData(dataArray)
+      }
+    }
+  })
+}
+```
+
+2. 设置设备属性（同步模式）
+----------------------------------------
+**接口地址：** POST https://iot-api.heclouds.com/thingmodel/set-device-property
+
+**请求体：**
+```json
+{
+  "product_id": "K3GGK1Sj7Q",
+  "device_name": "stm",
+  "params": {
+    "fan": true,
+    "valve": false,
+    "alarm": false
+  }
+}
+```
+
+**请求头：**
+```
+authorization: {Token}
+content-type: application/json
+```
+
+**小程序调用示例：**
+```javascript
+sendControlCommand(identifier, value) {
+  const params = {}
+  params[identifier] = value
+
+  wx.request({
+    url: `${API_CONFIG.baseUrl}/thingmodel/set-device-property`,
+    method: 'POST',
+    header: {
+      'content-type': 'application/json',
+      'authorization': API_CONFIG.token
+    },
+    data: {
+      product_id: API_CONFIG.productId,
+      device_name: API_CONFIG.deviceName,
+      params: params
+    },
+    success: (res) => {
+      if (res.data && res.data.code === 0) {
+        console.log('命令发送成功')
+      }
+    }
+  })
+}
+```
+
+3. 设置设备期望属性（离线模式）
+----------------------------------------
+**接口地址：** POST https://iot-api.heclouds.com/thingmodel/set-device-desired-property
+
+**使用场景：** 离线模式下直接上报云端，不等待设备响应
+
+**请求体：**
+```json
+{
+  "product_id": "K3GGK1Sj7Q",
+  "device_name": "stm",
+  "params": {
+    "fan": true
+  }
+}
+```
+
+**小程序调用示例：**
+```javascript
+// 离线模式：立即更新本地状态并上报云端
+sendControlCommandOffline(identifier, value) {
+  wx.request({
+    url: `${API_CONFIG.baseUrl}/thingmodel/set-device-desired-property`,
+    method: 'POST',
+    header: {
+      'content-type': 'application/json',
+      'authorization': API_CONFIG.token
+    },
+    data: {
+      product_id: API_CONFIG.productId,
+      device_name: API_CONFIG.deviceName,
+      params: { [identifier]: value }
+    }
+  })
+}
+```
+
+4. 查询设备详情（在线状态）
+----------------------------------------
+**接口地址：** GET https://iot-api.heclouds.com/device/detail
+
+**请求参数：**
+```
+product_id: K3GGK1Sj7Q
+device_name: stm
+```
+
+**返回格式：**
+```json
+{
+  "code": 0,
+  "data": {
+    "status": 1,  // 1=在线, 0=离线
+    "online": true
+  }
+}
+```
+
+**小程序调用示例：**
+```javascript
+queryDeviceStatus() {
+  wx.request({
+    url: `${API_CONFIG.baseUrl}/device/detail`,
+    method: 'GET',
+    data: {
+      product_id: API_CONFIG.productId,
+      device_name: API_CONFIG.deviceName
+    },
+    header: {
+      'authorization': API_CONFIG.token
+    },
+    success: (res) => {
+      if (res.data && res.data.code === 0) {
+        const deviceData = res.data.data
+        const isOnline = deviceData.status === 1 || deviceData.online === true
+        // 更新设备状态
+      }
+    }
+  })
+}
+```
+
+【小程序数据解析】
+
+1. 解析传感器数据
+----------------------------------------
+```javascript
+parseDeviceData(dataArray) {
+  const sensorData = { ...this.data.sensorData }
+  const controlData = { ...this.data.controlData }
+  
+  dataArray.forEach(item => {
+    if (item.identifier === 'temperature' && item.value !== undefined) {
+      sensorData.temperature = parseFloat(item.value).toFixed(1)
+    } else if (item.identifier === 'humidity' && item.value !== undefined) {
+      sensorData.humidity = parseFloat(item.value).toFixed(1)
+    } else if (item.identifier === 'light' && item.value !== undefined) {
+      sensorData.light = parseInt(item.value).toString()
+    } else if (item.identifier === 'smoke' && item.value !== undefined) {
+      sensorData.smoke = parseInt(item.value).toString()
+    } else if (item.identifier === 'fan' && item.value !== undefined) {
+      controlData.fan = this.parseBooleanValue(item.value)
+    } else if (item.identifier === 'valve' && item.value !== undefined) {
+      controlData.valve = this.parseBooleanValue(item.value)
+    } else if (item.identifier === 'alarm' && item.value !== undefined) {
+      controlData.alarm = this.parseBooleanValue(item.value)
+    }
+  })
+  
+  this.setData({ sensorData, controlData })
+}
+```
+
+2. 解析布尔值
+----------------------------------------
+```javascript
+parseBooleanValue(value) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const lowerValue = value.toLowerCase().trim()
+    return lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes'
+  }
+  if (typeof value === 'number') return value === 1
+  return !!value
+}
+```
+
+【小程序自动控制逻辑】
+
+小程序支持两种控制模式：手动模式和自动模式
+
+1. 手动模式
+----------------------------------------
+用户手动控制设备开关，发送控制指令到OneNET平台
+
+2. 自动模式
+----------------------------------------
+根据传感器数据自动控制设备：
+
+```javascript
+autoControl(sensorData, controlData) {
+  const temperature = parseFloat(sensorData.temperature)
+  const smoke = parseInt(sensorData.smoke)
+
+  // 烟雾超标报警
+  if (!isNaN(smoke) && smoke > 1500) {
+    if (!controlData.alarm) {
+      this.sendControlCommand('alarm', true, true)
+    }
+    if (!controlData.fan) {
+      this.sendControlCommand('fan', true, true)
+    }
+  }
+
+  // 温度过高降温
+  if (!isNaN(temperature) && temperature > 35) {
+    if (!controlData.fan) {
+      this.sendControlCommand('fan', true, true)
+    }
+  }
+
+  // 环境恢复正常
+  if (!isNaN(temperature) && temperature < 33 && !isNaN(smoke) && smoke < 1400) {
+    if (controlData.fan) {
+      this.sendControlCommand('fan', false, true)
+    }
+    if (controlData.alarm) {
+      this.sendControlCommand('alarm', false, true)
+    }
+  }
+}
+```
+
+【小程序数据刷新机制】
+
+1. 定时刷新
+----------------------------------------
+```javascript
+onLoad() {
+  // 每2秒刷新一次数据
+  this.data.timer = setInterval(() => {
+    this.queryDeviceData()
+    this.queryDeviceStatus()
+  }, 2000)
+  
+  // 每30分钟更新天气
+  this.data.weatherTimer = setInterval(() => {
+    this.getWeather()
+  }, 1800000)
+}
+
+onUnload() {
+  if (this.data.timer) {
+    clearInterval(this.data.timer)
+  }
+  if (this.data.weatherTimer) {
+    clearInterval(this.data.weatherTimer)
+  }
+}
+```
+
+2. 离线模式
+----------------------------------------
+离线模式下，控制指令直接上报云端，不等待设备响应：
+
+```javascript
+toggleOfflineMode() {
+  const newMode = !this.data.offlineMode
+  this.setData({ offlineMode: newMode })
+  if (newMode) {
+    // 离线模式：控制指令直接上报云端
+    this.addLog('info', '已开启离线模式，控制指令将直接上报云端')
+  } else {
+    this.addLog('info', '已关闭离线模式')
+  }
+}
+```
+
+【小程序阈值配置】
+
+```javascript
+thresholds: {
+  temperature: { warning: 30, danger: 35 },
+  humidity: { warning: 70, danger: 80 },
+  smoke: { warning: 1500, danger: 2000 },
+  light: { low: 50, warning: 600, danger: 800 }
+}
+```
+
+【小程序页面结构】
+
+```
+miniprogram/
+├── pages/
+│   ├── index/           # 首页（监控页面）
+│   ├── analysis/        # 数据分析页面
+│   ├── history/         # 历史数据页面
+│   ├── devices/         # 设备管理页面
+│   ├── settings/        # 系统设置页面
+│   ├── profile/         # 个人中心页面
+│   ├── notification-settings/  # 消息通知设置
+│   ├── theme-settings/  # 主题切换
+│   ├── about/           # 关于我们
+│   ├── log/             # 系统日志
+│   ├── chart-detail/    # 图表详情
+│   ├── history-query/   # 历史查询
+│   └── monitor-video/   # 视频监控
+├── utils/
+│   └── dataStorage.js   # 数据存储工具
+├── app.js               # 应用入口
+├── app.json             # 应用配置
+└── app.wxss             # 全局样式
+```
+
+【小程序全局数据】
+
+```javascript
+globalData: {
+  userInfo: null,
+  logs: [],
+  logPaused: false,
+  theme: 'afternoon',
+  cameraUrl: '',
+  temperatureHistory: [],
+  humidityHistory: [],
+  lightHistory: [],
+  smokeHistory: [],
+  thresholds: {
+    temperature: { warning: 30, danger: 35 },
+    humidity: { warning: 70, danger: 80 },
+    smoke: { warning: 1500, danger: 2000 },
+    light: { low: 50, warning: 600, danger: 800 }
+  }
+}
+```
+
+【小程序主题系统】
+
+```javascript
+getThemeColors() {
+  const themes = {
+    morning: {
+      primary: '#FF7E5F',
+      secondary: '#FEB47B',
+      bg: 'linear-gradient(180deg, #FFF5F0 0%, #ffffff 100%)'
+    },
+    afternoon: {
+      primary: '#667eea',
+      secondary: '#764ba2',
+      bg: 'linear-gradient(180deg, #f5f7ff 0%, #ffffff 100%)'
+    },
+    evening: {
+      primary: '#f093fb',
+      secondary: '#f5576c',
+      bg: 'linear-gradient(180deg, #FFF0F5 0%, #ffffff 100%)'
+    },
+    night: {
+      primary: '#4facfe',
+      secondary: '#00f2fe',
+      bg: 'linear-gradient(180deg, #F0F8FF 0%, #ffffff 100%)'
+    }
+  }
+  return themes[this.globalData.theme] || themes.afternoon
+}
+```
+
+========================================
+sys/K3GGK1Sj7Q/{device-name}/thing/property/post
+发布
+直连设备上报属性
+$sys/K3GGK1Sj7Q/{device-name}/thing/property/post/reply
+订阅
+直连设备上报属性响应
+$sys/K3GGK1Sj7Q/{device-name}/thing/event/post
+发布
+直连设备上报事件
+$sys/K3GGK1Sj7Q/{device-name}/thing/event/post/reply
+订阅
+直连设备上报事件响应
+$sys/K3GGK1Sj7Q/{device-name}/thing/property/set
+订阅
+设置直连设备属性
+$sys/K3GGK1Sj7Q/{device-name}/thing/property/set_reply
+发布
+直连设备属性设置响应
+$sys/K3GGK1Sj7Q/{device-name}/thing/sub/property/set
+订阅
+设置子设备属性
+$sys/K3GGK1Sj7Q/{device-name}/thing/sub/property/set_reply
+发布
+子设备属性设置响应
+$sys/K3GGK1Sj7Q/{device-name}/thing/property/desired/get
+发布
+直连设备获取期望值
+$sys/K3GGK1Sj7Q/{device-name}/thing/property/desired/get/reply
+订阅
+直连设备获取期望值响应
+$sys/K3GGK1Sj7Q/{device-name}/thing/property/desired/delete
+发布
+直连设备清除期望值
+$sys/K3GGK1Sj7Q/{device-name}/thing/property/desired/delete/reply
+订阅
+直连设备清除期望值响应
+$sys/K3GGK1Sj7Q/{device-name}/thing/property/get
+订阅
+平台获取直连设备的属性
+$sys/K3GGK1Sj7Q/{device-name}/thing/property/get_reply
+发布
+直连设备回复平台获取设备属性
+$sys/K3GGK1Sj7Q/{device-name}/thing/sub/property/get
+订阅
+平台获取子设备属性
+$sys/K3GGK1Sj7Q/{device-name}/thing/sub/property/get_reply
+发布
+设备回复获取子设备属性
+$sys/K3GGK1Sj7Q/{device-name}/thing/service/{identifier}/invoke
+订阅
+平台调用直连设备服务(下发数据并期望设备执行完成后给出响应)
+$sys/K3GGK1Sj7Q/{device-name}/thing/service/{identifier}/invoke_reply
+发布
+直连设备回复“平台调用设备服务”
+$sys/K3GGK1Sj7Q/{device-name}/thing/sub/service/invoke
+订阅
+平台调用子设备服务
+$sys/K3GGK1Sj7Q/{device-name}/thing/sub/service/invoke_reply
+发布
+子设备回复"调用子设备服务"
+$sys/K3GGK1Sj7Q/{device-name}/thing/pack/post
+发布
+直连设备或子设备批量上报属性或事件
+$sys/K3GGK1Sj7Q/{device-name}/thing/pack/post/reply
+订阅
+平台回复"设备批量上报属性或事件"
+$sys/K3GGK1Sj7Q/{device-name}/thing/history/post
+发布
+直连设备或子设备上报历史数据
+$sys/K3GGK1Sj7Q/{device-name}/thing/history/post/reply
+订阅
+平台回复"设备上报历史数据"
